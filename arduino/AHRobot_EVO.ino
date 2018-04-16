@@ -1,16 +1,13 @@
-// JJROBOTS AHR: AIR HOCKEY ROBOT EVO PROJECT (Smartphone control ready!)
-// Author: Jose Julio (JJROBOTS)
+// POSITRONIC FLUFFY GARBANZO - AIR HOCKEY ROBOT
+// Author: POSITRONIC AI
 // Hardware: Arduino Leonardo + JJROBOTS brain shield v3 (devia)
-// Date: 04/11/2015
-// Last updated: 14/12/2016
-// Version: 2.17
+// Version: 2.0
 // Project page :
-//   http://jjrobotos.com/air-hockey-robot-evo/
+//   TODO
 // GIT repository:
-//   http://github.com/jjrobots/Air_Hockey_Robot_EVO/
-// License: Open Software GPL License
+//   https://github.com/Positronic-IO/fluffy-garbanzo
 
-#define VERSION "2.17"
+#define VERSION "2.0"
 
 // ROBOT and USER configuration parameters
 #include "Configuration.h"
@@ -38,7 +35,7 @@ void setup()
   Serial.begin(115200);   // PC debug connection
   Serial1.begin(115200);  // ESP serial connection
   delay(5000);
-  Serial.print("AHR JJRobots Air Hockey Robot EVO version ");
+  Serial.print("Positronic Fluffy Garbanzo: Air Hockey Robot: Version ");
   Serial.println(VERSION);
   delay(1000);
 
@@ -129,19 +126,10 @@ void setup()
   Serial.println("Moving to initial position...");
   Serial.println("Ready!!");
 
-  setPosition_straight(ROBOT_CENTER_X, ROBOT_DEFENSE_POSITION_DEFAULT);
-
-  Serial.print("Target_position:");
-  Serial.print(ROBOT_CENTER_X);
-  Serial.print(",");
-  Serial.println(ROBOT_DEFENSE_POSITION_DEFAULT);
-  //Serial.print(";");
-  //Serial.print(target_position_M1);
-  //Serial.print(",");
-  //Serial.println(target_position_M2);
+  setPosition_straight(0, 3, 0, 0);
 
   digitalWrite(13, HIGH);
-  Serial.print("AHR JJRobots Air Hockey Robot EVO version ");
+  Serial.print("Positronic Fluffy Garbanzo: Air Hockey Robot: Version ");
   Serial.println(VERSION);
   Serial.println("ready...");
 
@@ -181,66 +169,26 @@ void loop()
       timer_packet_old = timer_value;
       logOutput = 0;
 
-      Serial.print("P");
+      Serial.println();
+      Serial.print("Packet-");
       Serial.print(newPacket);
+      Serial.println();
 
-      if (newPacket == 1) // Camera packet
-      {
-        // Puck detection and trayectory prediction
-        cameraProcess(dt);
-        // Strategy based on puck prediction
-        newDataStrategy();
-        // Serial output (DEBUG)
-        //Serial.print(" ");
-        //Serial.print(cam_timestamp);
-        //Serial.print(" ");
-        //Serial.print(puckCoordX);
-        //Serial.print(",");
-        //Serial.print(puckCoordY);
-        //Serial.print(" ");
-        //Serial.print(predict_status);
-        //Serial.print(",");
-        //Serial.print(robot_status);
-      }
-      else if (newPacket == 2) { // User sends a manual move
+      if (newPacket == 2) { // User sends a manual move
         robot_status = 5;    // Manual mode
         Serial.print(" ");
         Serial.print(user_target_x);
         Serial.print(",");
         Serial.print(user_target_y);
       }
-      else if (newPacket == 3) {
-        Serial.print(" USER MAX SPEED:");
-        Serial.println(user_max_speed);
-        Serial.print("USER MAX ACCEL:");
-        Serial.println(user_max_accel);
-        Serial.print("USER DEFENSE POSITION:");
-        Serial.println(user_robot_defense_position);
-        Serial.print("USER ATTACK POSITION:");
-        Serial.print(user_robot_defense_attack_position);
-      }
 
       robotStrategy();
-
-      // Robot position detection for missing steps detection in stepper motors.
-      missingStepsDetection();
-
       Serial.println();
       newPacket = 0;
     }  // End packet received
 
     if (testmode)
       testMovements();
-
-#ifdef DEBUG
-    // DEBUG: We inform of the position error of the robot as seen in the camera (util for calibrations)
-    if ((loop_counter % 1293) == 0) {
-      Serial.print("ROBOT MSD: ");
-      Serial.print(robotMissingStepsErrorX);
-      Serial.print(",");
-      Serial.println(robotMissingStepsErrorY);
-    }
-#endif
 
     if ((loop_counter % 10) == 0)
       updatePosition_straight();  // update straight line motion algorithm

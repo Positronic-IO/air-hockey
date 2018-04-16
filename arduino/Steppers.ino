@@ -1,4 +1,4 @@
-// JJROBOTS AHR AIR HOCKEY ROBOT EVO PROJECT
+// POSITRONIC FLUFFY GARBANZO - AIR HOCKEY ROBOT
 // STEPPERS MOTOR CONTROL
 // Updated: Now it supports DRV8825 drivers and A4988 drivers
 // SPEED, ACCELERATION AND POSITION CONTROL using Arduino 16 bit Timer interrupts
@@ -59,7 +59,6 @@ ISR(TIMER3_COMPA_vect)
 //    target_position_M1
 //    target_speed_M1
 //    max_acceleration
-
 void positionControl()
 {
   int32_t temp;
@@ -230,25 +229,9 @@ void setMotorSpeed(int16_t m1tspeed, int16_t m2tspeed, int16_t dt)
 }
 
 
-// set Robot position in mm (simple algorithm, not used now)
-// This function check for valid robot positions values
-// Convert from mm units to steps
-void setPosition_no_straight(int target_x_mm_new, int target_y_mm_new)
-{
-  target_x_mm = constrain(target_x_mm_new, ROBOT_MIN_X, ROBOT_MAX_X);
-  target_y_mm = constrain(target_y_mm_new, ROBOT_MIN_Y, ROBOT_MAX_Y);
-
-  // HBOT configuration M1=(x+y) M2=(x-y)
-  target_position_M1 = (target_x_mm + target_y_mm) * X_AXIS_STEPS_PER_UNIT;
-  target_position_M2 = (target_x_mm - target_y_mm) * Y_AXIS_STEPS_PER_UNIT;
-  com_speed_M1 = target_speed_M1;
-  com_speed_M2 = target_speed_M2;
-}
-
-
 // set Robot position in mm.
 // New algorithm! try to follow straight lines between moves and minimize overshoots
-void setPosition_straight(int target_x_mm_new, int target_y_mm_new)
+void setPosition_straight(int target_x_mm_new, int target_y_mm_new, int robot_current_x, int robot_current_y)
 {
   int diff_M1;
   int diff_M2;
@@ -266,11 +249,38 @@ void setPosition_straight(int target_x_mm_new, int target_y_mm_new)
   //  return;  // old target
 
   // Constrain to robot limits...
-  target_x_mm = constrain(target_x_mm_new, ROBOT_MIN_X, ROBOT_MAX_X);
-  target_y_mm = constrain(target_y_mm_new, ROBOT_MIN_Y, ROBOT_MAX_Y);
+  target_x_mm = target_x_mm_new;
+  target_y_mm = target_y_mm_new;
   // HBOT configuration M1=(x+y) M2=(x-y)
-  target_position_M1 = (target_x_mm + target_y_mm) * X_AXIS_STEPS_PER_UNIT;
-  target_position_M2 = (target_x_mm - target_y_mm) * Y_AXIS_STEPS_PER_UNIT;
+
+  Serial.println(" ");
+  Serial.print("target_x_mm: ");
+  Serial.print(target_x_mm);
+  Serial.print(", target_y_mm: ");
+  Serial.print(target_y_mm);
+  Serial.println(" ");
+
+  Serial.println(" ");
+  Serial.print("robot_current_x: ");
+  Serial.print(robot_current_x);
+  Serial.print(", robot_current_y: ");
+  Serial.print(robot_current_y);
+  Serial.println(" ");
+  position_M1 = ((robot_current_x) + (robot_current_y)) * X_AXIS_STEPS_PER_UNIT;
+  position_M2 = ((robot_current_x) - (robot_current_y)) * Y_AXIS_STEPS_PER_UNIT;
+
+  target_position_M1 = ((target_x_mm) + (target_y_mm)) * X_AXIS_STEPS_PER_UNIT;
+  target_position_M2 = ((target_x_mm) - (target_y_mm)) * Y_AXIS_STEPS_PER_UNIT;
+
+  Serial.println(" ");
+  Serial.print("target_position_M1: ");
+  Serial.print(target_position_M1);
+  Serial.println(" ");
+
+  Serial.println(" ");
+  Serial.print("target_position_M2: ");
+  Serial.print(target_position_M2);
+  Serial.println(" ");
 
   // Speed adjust to draw straight lines (aproximation)
   // First, we calculate the distante to target on each axis
@@ -302,6 +312,8 @@ void setPosition_straight(int target_x_mm_new, int target_y_mm_new)
   // Set motor speeds. We apply the straight factor and the "acceleration compensation" speedfactor
   target_speed_M1 = max_speed * factor1 * speedfactor1 * speedfactor1;
   target_speed_M2 = max_speed * factor2 * speedfactor2 * speedfactor2;
+
+  Serial.println("Done setting position.");
 
 }
 
