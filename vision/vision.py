@@ -5,12 +5,12 @@ from robotvision.robotvision import RobotVision
 #Variables...
 
 # Puck HSV Bounds (Green)
-pucklowerBound=np.array([30,150,90])
-puckupperBound=np.array([90,190,140])
+pucklowerBound=np.array([25,100,50])
+puckupperBound=np.array([65,170,160])
 
-# Bot HSV Bounds (White 3dPrint)
-botlowerBound=np.array([95,15,165])
-botupperBound=np.array([110,30,180])
+# Bot HSV Bounds (Red 3dPrint)
+botlowerBound=np.array([125,140,110])
+botupperBound=np.array([130,185,150])
 
 '''
 
@@ -43,16 +43,64 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT,340)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT,220)
 cap.set(cv2.CAP_PROP_FPS,120)
 
+lastpx=0
+lastpy=0
+lastpw=0
+lastph=0
+
 while(True):
 
-    
-    ret, img = cap.read()
-    cv2.imshow('img-vid', img)
+    use_offset_px_from=False
+    use_offset_px_to=False
+    use_offset_py_from=False
+    use_offset_py_to=False
 
-    working_img=cv2.resize(img,(340,220))
+
+    # if lastpx > 30 and lastpw > 30 and lastph > 30 and lastpy > 30:
+    #     use_offset_x_from=True
+    # else:
+    #     use_offset=False
+    
+
+    px_offset_from=0
+    px_offset_to=0
+    py_offset_from=0
+    py_offset_to=0
+
+    ret, img = cap.read()
+
+    if lastpx > 30:
+        px_offset_from=lastpx-30
+    else:
+        px_offset_from=0
+
+    if lastpw > 30:
+        px_offset_to=lastpx+lastpw+30
+    else:
+        px_offset_to=img.shape[1]
+
+    if lastpy > 30:
+        py_offset_from=lastpy-30
+    else:
+        py_offset_from=0
+
+    if lastpw > 30:
+        py_offset_to=lastpy+lastph+30
+    else:
+        py_offset_to=img.shape[0]
+
+    print("px_offset_from:",px_offset_from)
+    print("px_offset_to:",px_offset_to)
+    print("py_offset_from:",py_offset_from)
+    print("py_offset_to:",py_offset_to)
+    cv2.imshow('img-vid', img[py_offset_from:py_offset_to,px_offset_from:px_offset_to,:])
+
+        
+
+    #working_img=cv2.resize(img,(340,220))
 
     #convert image to HSV
-    hsv_image=cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hsv_image=cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     
     # DEGUG: Show hsv image
     #cv2.imshow('hsv-vid', hsv_image)
@@ -86,14 +134,23 @@ while(True):
         # Draw locations of puck and bot on image.
         image = img.copy()
         cv2.rectangle(image,(px,py),(px+pw,py+ph),(255,0,0),2)
-        cv2.rectangle(image,(bx,by),(bx+bw,by+bh),(0,0,255),1)
+        cv2.rectangle(image,(bx,by),(bx+bw,by+bh),(255,0,255),1)
+
+        lastpx=px
+        lastpw=pw
+        lastpy=py
+        lastph=ph
 
         cv2.imshow('', image)
     except ValueError as identifier:
+        lastpx=0
+        lastpw=0
+        lastpy=0
+        lastph=0
         cv2.imshow('', img)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
-cv2.destroyAllWindows()
+cv2.destroyAllWindows() 
