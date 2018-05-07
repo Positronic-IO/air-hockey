@@ -206,8 +206,43 @@
             fill: "red"
         }
 
+        function setBotStatePosition () {
+            fetch('http://localhost:3000/api/bot-move',
+                {
+                    body: JSON.stringify({
+                        x: state_bot.x,
+                        y: state_bot.y
+                    }),
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    
+                })
+            .then(response => response.json());
+        }
+
+        function setPuckStatePosition () {
+            fetch('http://localhost:3000/api/puck-move',
+                {
+                    body: JSON.stringify({
+                        x: state_puck.x,
+                        y: state_puck.y
+                    }),
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    
+                })
+            .then(response => response.json());
+        }
+
+
         // call to draw the scene
-        draw_state();
+        //draw_state();
+        setBotStatePosition();
+        setPuckStatePosition();
 
         function drawStatePuck(x,y,r) {
             stateCtx.beginPath();
@@ -247,11 +282,11 @@
         // ######################## STATE ############################
 
         socket.on('state-change', function(msg) {
-            //console.log('State Changed: ', msg);
+            state_puck.x = msg.puck.x;
+            state_puck.y = msg.puck.y;
 
-            var parsed = JSON.parse(msg);
-            state_puck.x = parsed.puck.x;
-            state_puck.y = parsed.puck.y;
+            state_bot.x = msg.bot.x;
+            state_bot.y = msg.bot.y;
 
             draw_state();
         });

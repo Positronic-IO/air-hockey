@@ -15,18 +15,17 @@ app.post('/api/puck-move', (req, res) => {
 
     puck = req.body;
 
-    let state = {
-        puck: {
-            x: puck.x,
-            y: puck.y
-        },
-        bot: {
-            x:0,
-            y:0
-        }
-    };
+    redisClient.set('machine-state-puck', JSON.stringify(puck));
+    pub.publish("state-changed", true);
 
-    redisClient.set('machine-state', JSON.stringify(state));
+    res.status(200).send({});
+});
+
+app.post('/api/bot-move', (req, res) => {
+
+    bot = req.body;
+
+    redisClient.set('machine-state-bot', JSON.stringify(bot));
     pub.publish("state-changed", true);
 
     res.status(200).send({});
@@ -44,11 +43,22 @@ io.on('connection', function(socket) {
 
 sub.on("message", function(channel, message) {
     //console.log("sub channel " + channel + ": " + message);
-    const state = redisClient.get("machine-state", function(err, reply) {
-        console.log(reply.toString());
+    const puckRes = redisClient.get("machine-state-puck", function(err, puckState) {
+        //io.emit('puck-state-change', reply);
+        const botRes = redisClient.get("machine-state-bot", function(err, botState) {
 
-        io.emit('state-change', reply);
+            const state = {
+                puck: JSON.parse(puckState),
+                bot: JSON.parse(botState)
+            };
+
+            publishMachineState(state);
+        });
     });
 });
-sub.subscribe("state-changed");
 
+function publishMachineState(state) {
+    io.emit('state-change', state)
+}
+
+sub.subscribe("state-changed");
