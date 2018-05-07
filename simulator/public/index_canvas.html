@@ -8,13 +8,40 @@
 
     <style>
         body{ background-color: ivory; }
-        #canvas{border:1px solid red;}
+        #canvas{border:1px solid green;}
+
+        #canvas-state{
+            border: 1px solid red;
+            position: relative;
+            left: 150px;
+        }
     </style>
 </head>
 <body>
     <canvas id="canvas" width=480 height=640></canvas>
-
+    <canvas id="canvas-state" width=480 height="640"></canvas>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
     <script>
+        var socket = io();
+        // setInterval(function() {
+
+        //     fetch('http://localhost:3000/api/get-state',
+        //         {
+        //             headers: {
+        //                 'content-type': 'application/json'
+        //             },
+        //             method: 'GET',
+                    
+        //         })
+        //     .then(response => response.json())
+        //     .then(function(responseJson) {
+        //         console.log('state: ', responseJson);
+        //     });
+
+        // }, 17);
+
         // get canvas related references
         var canvas = document.getElementById("canvas");
         var ctx = canvas.getContext("2d");
@@ -38,16 +65,6 @@
             isDragging: false
         };
 
-        var rects = [];
-        rects.push({
-            x: WIDTH/2,
-            y: 50,
-            width: 30,
-            height: 30,
-            fill: "#444444",
-            isDragging: false
-        });
-
         // listen for mouse events
         canvas.onmousedown = myDown;
         canvas.onmouseup = myUp;
@@ -55,14 +72,6 @@
 
         // call to draw the scene
         draw();
-
-        // draw a single rect
-        function rect(x, y, w, h) {
-            ctx.beginPath();
-            ctx.rect(x, y, w, h);
-            ctx.closePath();
-            ctx.fill();
-        }
 
         function drawPuck(x,y,r) {
             ctx.beginPath();
@@ -79,17 +88,6 @@
         // redraw the scene
         function draw() {
             clear();
-            ctx.fillStyle = "#FAF7F8";
-            //rect(0, 0, WIDTH, HEIGHT);
-
-            //puck(0,0,width,height);
-
-            // redraw each rect in the rects[] array
-            // for (var i = 0; i < rects.length; i++) {
-            //     var r = rects[i];
-            //     ctx.fillStyle = r.fill;
-            //     rect(r.x, r.y, r.width, r.height);
-            // }
 
             ctx.fillStyle = puck.fill;
             drawPuck(puck.x,puck.y,puck.radius);
@@ -107,19 +105,10 @@
             var mx = parseInt(e.clientX - offsetX);
             var my = parseInt(e.clientY - offsetY);
 
-            // test each rect to see if mouse is inside
             dragok = false;
-            // for (var i = 0; i < rects.length; i++) {
-            //     var r = rects[i];
-            //     if (mx > r.x && mx < r.x + r.width && my > r.y && my < r.y + r.height) {
-            //         // if yes, set that rects isDragging=true
-            //         dragok = true;
-            //         r.isDragging = true;
-            //     }
-            // }
-
+            
+            // Drawing Puck...
             if (mx > puck.x - puck.radius && mx < puck.x + puck.radius && my > puck.y - puck.radius && my < puck.y + puck.radius) {
-                // if yes, set that rects isDragging=true
                 dragok = true;
                 puck.isDragging = true;
             }
@@ -164,24 +153,15 @@
                 var dx = mx - startX;
                 var dy = my - startY;
 
-                // move each rect that isDragging 
-                // by the distance the mouse has moved
-                // since the last mousemove
-                // for (var i = 0; i < rects.length; i++) {
-                //     var r = rects[i];
-                //     if (r.isDragging) {
-                //         r.x += dx;
-                //         r.y += dy;
-                //     }
-                // }
-
                 if (puck.isDragging) {
                     puck.x += dx;
                     puck.y += dy;
                 }
 
                 var puckPosition = {x:puck.x,y:puck.y};
-                console.log('Puck Positon: ', puckPosition);
+
+                //console.log('Puck Positon: ', puckPosition);
+                setPuckPos(`http://localhost:3000/api/puck-move`, puckPosition);
 
                 // redraw the scene with the new rect positions
                 draw();
@@ -189,8 +169,20 @@
                 // reset the starting mouse position for the next mousemove
                 startX = mx;
                 startY = my;
-
             }
+        }
+
+        function setPuckPos(url, data) {
+            fetch(url,
+                {
+                    body: JSON.stringify(data),
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    
+                })
+            .then(response => response.json());
         }
     </script>
 </body>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>AHR Web Simulator</title>
+
+    <style>
+        body{ background-color: ivory; }
+        #sim-canvas {
+            border:1px solid green;
+        }
+
+        #state-canvas{
+            border: 1px solid red;
+            position: relative;
+            left: 150px;
+        }
+
+        #canvas-container {
+            display:flex;
+            justify-content: center;
+        }
+    </style>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
+
+    <script>
+        var socket = io();
+    </script>
+</head>
+<body>
+    <h1>Fluffy Garbanzo</h1>
+    <div style="width:100%" id="canvas-container">
+        <div>
+            <canvas id="sim-canvas" width=480 height=640></canvas>
+        </div>
+        <div>
+            <canvas id="state-canvas" width=480 height="640"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // ######################## Simulator ########################
+
+        // get canvas related references
+        var simCanvas = document.getElementById("sim-canvas");
+        var simCtx = simCanvas.getContext("2d");
+        var simbb = simCanvas.getBoundingClientRect();
+        var simOffsetX = simbb.left;
+        var simOffsetY = simbb.top;
+        var SIM_WIDTH = simCanvas.width;
+        var SIM_HEIGHT = simCanvas.height;
+
+        // drag related variables
+        var dragok = false;
+        var startX;
+        var startY;
+
+        // an array of objects that define different rectangles
+        var sim_puck = {
+            x: SIM_WIDTH / 2,
+            y:50,
+            radius: 20,
+            fill:"#00FFFF",
+            isDragging: false
+        };
+
+        // call to draw the scene
+        draw_sim();
+
+        function drawSimPuck(x,y,r) {
+            simCtx.beginPath();
+            simCtx.arc(x,y,r,0,Math.PI*2);
+            simCtx.closePath();
+            simCtx.fill();
+        }
+
+        // clear the canvas
+        function clear_sim() {
+            simCtx.clearRect(0, 0, SIM_WIDTH, SIM_HEIGHT);
+
+            simCtx.fillStyle = "#ffffff";
+            simCtx.fillRect(0,0,SIM_WIDTH, SIM_HEIGHT);
+        }
+
+        // redraw the scene
+        function draw_sim() {
+            clear_sim();
+
+            simCtx.fillStyle = sim_puck.fill;
+            drawSimPuck(sim_puck.x,sim_puck.y,sim_puck.radius);
+        }
+
+        // listen for mouse events
+        simCanvas.onmousedown = function myDown(e) {
+
+            // tell the browser we're handling this mouse event
+            e.preventDefault();
+            e.stopPropagation();
+
+            // get the current mouse position
+            var mx = parseInt(e.clientX - simOffsetX);
+            var my = parseInt(e.clientY - simOffsetY);
+
+            dragok = false;
+
+            // Drawing Puck...
+            if (mx > sim_puck.x - sim_puck.radius && mx < sim_puck.x + sim_puck.radius && my > sim_puck.y - sim_puck.radius && my < sim_puck.y + sim_puck.radius) {
+                dragok = true;
+                sim_puck.isDragging = true;
+            }
+
+            // save the current mouse position
+            startX = mx;
+            startY = my;
+        };
+        
+        simCanvas.onmouseup = function myUp(e) {  
+            // tell the browser we're handling this mouse event
+            e.preventDefault();
+            e.stopPropagation();
+
+            // clear all the dragging flags
+            dragok = false;
+            sim_puck.isDragging = false;
+        };
+        
+        simCanvas.onmousemove = function myMove(e) {
+            // if we're dragging anything...
+            if (dragok) {
+
+                // tell the browser we're handling this mouse event
+                e.preventDefault();
+                e.stopPropagation();
+
+                // get the current mouse position
+                var mx = parseInt(e.clientX - simOffsetX);
+                var my = parseInt(e.clientY - simOffsetY);
+
+                // calculate the distance the mouse has moved
+                // since the last mousemove
+                var dx = mx - startX;
+                var dy = my - startY;
+
+                if (sim_puck.isDragging) {
+                    sim_puck.x += dx;
+                    sim_puck.y += dy;
+                }
+
+                //console.log('Puck Positon: ', puckPosition);
+                setSimPuckPos(`http://localhost:3000/api/puck-move`, {
+                    x: sim_puck.x,
+                    y: sim_puck.y
+                });
+
+                // redraw the scene with the new rect positions
+                draw_sim();
+
+                // reset the starting mouse position for the next mousemove
+                startX = mx;
+                startY = my;
+            }
+        }
+
+        function setSimPuckPos(url, data) {
+            fetch(url,
+                {
+                    body: JSON.stringify(data),
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    
+                })
+            .then(response => response.json());
+        }
+    
+        // ######################## Simulator ########################
+
+        // ######################## STATE ############################
+
+        // get canvas related references
+        var stateCanvas = document.getElementById("state-canvas");
+        var stateCtx = stateCanvas.getContext("2d");
+        var statebb = stateCanvas.getBoundingClientRect();
+        var stateOffsetX = statebb.left;
+        var stateOffsetY = statebb.top;
+        var STATE_WIDTH = stateCanvas.width;
+        var STATE_HEIGHT = stateCanvas.height;
+
+        // an array of objects that define different rectangles
+        var state_puck = {
+            x: STATE_WIDTH / 2,
+            y:50,
+            radius: 20,
+            fill:"#000000"
+        };
+
+        var state_bot = {
+            x: STATE_WIDTH / 2,
+            y: STATE_HEIGHT - 50,
+            radius: 15,
+            fill: "red"
+        }
+
+        // call to draw the scene
+        draw_state();
+
+        function drawStatePuck(x,y,r) {
+            stateCtx.beginPath();
+            stateCtx.arc(x,y,r,0,Math.PI*2);
+            stateCtx.closePath();
+            stateCtx.fill();
+        }
+
+        function drawStateBot(x,y,r) {
+            stateCtx.beginPath();
+            stateCtx.arc(x,y,r,0,Math.PI*2);
+            stateCtx.closePath();
+            stateCtx.fill();
+        }
+
+
+
+        // clear the canvas
+        function clear_state() {
+            stateCtx.clearRect(0, 0, STATE_WIDTH, STATE_HEIGHT);
+
+            stateCtx.fillStyle = "#cecece";
+            stateCtx.fillRect(0,0,STATE_WIDTH, STATE_HEIGHT);
+        }
+
+        // redraw the scene
+        function draw_state() {
+            clear_state();
+
+            stateCtx.fillStyle = state_puck.fill;
+            drawStatePuck(state_puck.x,state_puck.y,state_puck.radius);
+
+            stateCtx.fillStyle = state_bot.fill;
+            drawStateBot(state_bot.x,state_bot.y,state_bot.radius);
+        }
+
+        // ######################## STATE ############################
+
+        socket.on('state-change', function(msg) {
+            //console.log('State Changed: ', msg);
+
+            var parsed = JSON.parse(msg);
+            state_puck.x = parsed.puck.x;
+            state_puck.y = parsed.puck.y;
+
+            draw_state();
+        });
+
+    </script>
+</body>
+</html>
