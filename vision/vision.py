@@ -1,156 +1,184 @@
 import numpy as np
 import cv2
-from robotvision.robotvision import RobotVision
+import imutils
+from WebcamVideoSteam import WebcamVideoStream
+from imutils.video import FPS
+import redis
+import json
 
-#Variables...
+corner_lower=np.array([75,106,120])
+corner_upper=np.array([90,210,200])
 
-# Puck HSV Bounds (Green)
-pucklowerBound=np.array([25,100,50])
-puckupperBound=np.array([65,170,160])
+side_lower = np.array([47,47,110])
+side_upper = np.array([62,112,174])
 
-# Bot HSV Bounds (Red 3dPrint)
-botlowerBound=np.array([125,140,110])
-botupperBound=np.array([130,185,150])
+goal_lower = np.array([17,114,87])
+goal_upper = np.array([26,168,111])
 
-'''
 
-For reference, the first argument in the cap.set() command refers to the enumeration of the camera properties, listed below:
+# Hard corded corner points
+top_left = (636, 55)
+top_right = (1213, 28)
+bot_right = (1892 ,  866)
+bot_left = (48, 949)
 
-0. CV_CAP_PROP_POS_MSEC Current position of the video file in milliseconds.
-1. CV_CAP_PROP_POS_FRAMES 0-based index of the frame to be decoded/captured next.
-2. CV_CAP_PROP_POS_AVI_RATIO Relative position of the video file
-3. CV_CAP_PROP_FRAME_WIDTH Width of the frames in the video stream.
-4. CV_CAP_PROP_FRAME_HEIGHT Height of the frames in the video stream.
-5. CV_CAP_PROP_FPS Frame rate.
-6. CV_CAP_PROP_FOURCC 4-character code of codec.
-7. CV_CAP_PROP_FRAME_COUNT Number of frames in the video file.
-8. CV_CAP_PROP_FORMAT Format of the Mat objects returned by retrieve() .
-9. CV_CAP_PROP_MODE Backend-specific value indicating the current capture mode.
-10. CV_CAP_PROP_BRIGHTNESS Brightness of the image (only for cameras).
-11. CV_CAP_PROP_CONTRAST Contrast of the image (only for cameras).
-12. CV_CAP_PROP_SATURATION Saturation of the image (only for cameras).
-13. CV_CAP_PROP_HUE Hue of the image (only for cameras).
-14. CV_CAP_PROP_GAIN Gain of the image (only for cameras).
-15. CV_CAP_PROP_EXPOSURE Exposure (only for cameras).
-16. CV_CAP_PROP_CONVERT_RGB Boolean flags indicating whether images should be converted to RGB.
-17. CV_CAP_PROP_WHITE_BALANCE Currently unsupported
-18. CV_CAP_PROP_RECTIFICATION Rectification flag for stereo cameras (note: only supported by DC1394 v 2.x backend currently)
+def get_homographic_image(img_src):
 
-'''
+    pts_src = np.array(
+    [
+        [bot_left[0], bot_left[1]],
+        [bot_right[0], bot_right[1]],
+        [top_right[0], top_right[1]],
+        [top_left[0], top_left[1]]    ]
+    )
+    pts_dst = np.array(
+        [
+            [0, 699],
+            [399, 699],
+            [399, 0],
+            [0, 0]        
+        ]
+    )
 
-cap = cv2.VideoCapture(1)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT,340)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT,220)
-cap.set(cv2.CAP_PROP_FPS,120)
+    h, status = cv2.findHomography(pts_src, pts_dst)
+    warped = cv2.warpPerspective(img_src, h, (400, 700))
+    return warped
 
-lastpx=0
-lastpy=0
-lastpw=0
-lastph=0
+def find_puck(img_src):
+    puckImage = img_src.copy()
 
+    hsv_image=cv2.cvtColor(puckImage, cv2.COLOR_RGB2HSV)
+    #hsv_mask=cv2.inRange(hsv_image,np.array([12,100,135]),np.array([30,150,200]))
+    hsv_mask=cv2.inRange(hsv_image,np.array([20,100,100]),np.array([30,200,200]))
+
+    opened=cv2.morphologyEx(hsv_mask,cv2.MORPH_OPEN, np.ones((9,9)))
+    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((11,11)))
+
+    edges = cv2.Canny(closed,255,255)
+    x,y,w,h = cv2.boundingRect(edges)
+
+    return x,y,w,h
+
+def get_contours(img_src, thresh):
+    # Convert image to grayscale
+    gray = cv2.cvtColor(img_src, cv2.COLOR_RGB2GRAY)
+
+    #threshold to only show white in a b&w image
+    t, bw = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
+
+    #remove noise
+    opened=cv2.morphologyEx(bw,cv2.MORPH_OPEN, np.ones((11,60)))
+    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((10,10)))
+
+    #get contours
+    image2, contours, hierarchy = cv2.findContours(closed,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+    return contours
+
+def find_trapezoid(img_src):
+    return None
+
+
+vs = WebcamVideoStream(src=1)
+vs = vs.start()
+fps = FPS().start()
+import time
+start = time.time()
+frames = 0
+frameCt = 0
+
+#contours = np.vstack(contours).squeeze()
+
+#r=redis.StrictRedis(host='localhost',port=6379,db=0)
 while(True):
+    img = vs.read()
+    if img is not None:
+        # cv2.imshow("Orig", img)
+        try:     
+            working_img = img.copy()
+            
+            #hsv_image=cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+            #corner_mask=getHSVMask(hsv_image.copy(),corner_lower,corner_upper)
+            #corner_mask_open,corner_mask_close=getOpenCloseMask(corner_mask)
+            #side_mask = getHSVMask(hsv_image.copy(),side_lower, side_upper)
+            #side_mask_open, side_mask_close = getOpenCloseMask(side_mask)
+            #goal_mask = getHSVMask(hsv_image.copy(),goal_lower, goal_upper)
+            #goal_mask_open, goal_mask_close = getOpenCloseMask(goal_mask)
+            
+            #warped = get_homographic_image(img)
+            #px,py,pw,ph = find_puck(warped)
+            #puck_rect=cv2.rectangle(warped,(px,py),(px+pw,py+ph),(0,255,0),1)
 
-    use_offset_px_from=False
-    use_offset_px_to=False
-    use_offset_py_from=False
-    use_offset_py_to=False
+            # centerW = pw/2
+            # centerH = ph/2
 
+            # centerx=px+centerW
+            # centery=py+centerH
 
-    # if lastpx > 30 and lastpw > 30 and lastph > 30 and lastpy > 30:
-    #     use_offset_x_from=True
-    # else:
-    #     use_offset=False
-    
+            # cv2.circle(warped, (centerx, centery), 8, (0, 255, 0), -1)
+            # cv2.imshow("Homographic With Puck Detection", warped)
 
-    px_offset_from=0
-    px_offset_to=0
-    py_offset_from=0
-    py_offset_to=0
+            # p=json.loads("{\"x\":0,\"y\":0}")
+            # p['x'] = centerx
+            # p['y'] = centery
+            
+            # r.set("machine-state-puck", json.dumps(p))
+            # r.publish('state-changed', True)
 
-    ret, img = cap.read()
+            # todo: make this recursive?
+            # If we have more than 15 contours, it's likely that our threshold is too low.
 
-    if lastpx > 30:
-        px_offset_from=lastpx-30
-    else:
-        px_offset_from=0
+            #if contours is None:
+                #contours = get_contours(working_img, 100)
 
-    if lastpw > 30:
-        px_offset_to=lastpx+lastpw+30
-    else:
-        px_offset_to=img.shape[1]
+            # if (len(contours) > 15):
+            #      print "Too many contours..."
+            #      contours = get_contours(img, 115)
 
-    if lastpy > 30:
-        py_offset_from=lastpy-30
-    else:
-        py_offset_from=0
+            # contourPts = []
+            # for i in range(0, len(contours)):
+            #     for j in range(0, len(contours[i])):
+            #         contourPts.append(contours[i][j])
 
-    if lastpw > 30:
-        py_offset_to=lastpy+lastph+30
-    else:
-        py_offset_to=img.shape[0]
+            # contourPts = np.array(contourPts)
 
-    print("px_offset_from:",px_offset_from)
-    print("px_offset_to:",px_offset_to)
-    print("py_offset_from:",py_offset_from)
-    print("py_offset_to:",py_offset_to)
-    cv2.imshow('img-vid', img[py_offset_from:py_offset_to,px_offset_from:px_offset_to,:])
+            # rect = cv2.minAreaRect(contourPts)
+            # box = cv2.boxPoints(rect)
+            # box = np.int0(box)
+            #cv2.drawContours(img,[box],0,(255,0,0),2)
+            if frameCt % 100 == 0:
+                contours = get_contours(vs.read().copy(), 100)
 
+            cv2.drawContours(working_img,contours,-1,(255,0,0),2)
+
+            # a, triangle = cv2.minEnclosingTriangle(contourPts)
+            
+            # img = cv2.line(img, (triangle[0][0][0],triangle[0][0][1]), (triangle[1][0][0], triangle[1][0][1]), (255,255,0), 2)
+            # img = cv2.line(img, (triangle[1][0][0],triangle[1][0][1]), (triangle[2][0][0], triangle[2][0][1]), (255,255,0), 2)
+            # img = cv2.line(img, (triangle[2][0][0],triangle[2][0][1]), (triangle[0][0][0], triangle[0][0][1]), (255,255,0), 2)
+            
+
+            cv2.imshow("Preview", working_img)
+
+            # print 'Contours: ', len(contours)
+            #cv2.imshow('edges', edges)
+
+            fps.update()
+            frames += 1
+        except Exception as ex:
+            print ex
+            pass
         
+        if time.time() - start > 1:
+            print "FPS: ", frames
+            frames = 0
+            start = time.time()
 
-    #working_img=cv2.resize(img,(340,220))
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
-    #convert image to HSV
-    hsv_image=cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    
-    # DEGUG: Show hsv image
-    #cv2.imshow('hsv-vid', hsv_image)
-
-    # Get HSV Mask for bot and puck from HSV image.
-    puck_mask=RobotVision.getHSVMask(hsv_image,pucklowerBound, puckupperBound)
-    bot_mask=RobotVision.getHSVMask(hsv_image,botlowerBound,botupperBound)
-
-    # DEGUG: Show mask
-    #cv2.imshow('puck-mask', puck_mask)
-    #cv2.imshow('bot-mask', bot_mask)
-
-    #Get open & Close mask
-    puck_mask_open,puck_mask_close= RobotVision.getOpenCloseMask(puck_mask)
-    bot_mask_open,bot_mask_close= RobotVision.getOpenCloseMask(bot_mask)
-
-    #cv2.imshow(puck_mask_close)
-    #cv2.imshow(bot_mask_close)
-
-    # Clean Noise form mask
-    #puck_mask_close_cleaned = RobotVision.cleanMask(puck_mask_close)
-    #bot_mask_close_cleaned = RobotVision.cleanMask(bot_mask_close)
-
-    #cv2.imshow('clean-puck-mask', puck_mask_close)
-    #cv2.imshow(bot_mask_close_cleaned)
-
-    try:
-        px,py,pw,ph = RobotVision.getMaskRectangle(puck_mask_close)
-        bx,by,bw,bh = RobotVision.getMaskRectangle(bot_mask_close)
-
-        # Draw locations of puck and bot on image.
-        image = img.copy()
-        cv2.rectangle(image,(px,py),(px+pw,py+ph),(255,0,0),2)
-        cv2.rectangle(image,(bx,by),(bx+bw,by+bh),(255,0,255),1)
-
-        lastpx=px
-        lastpw=pw
-        lastpy=py
-        lastph=ph
-
-        cv2.imshow('', image)
-    except ValueError as identifier:
-        lastpx=0
-        lastpw=0
-        lastpy=0
-        lastph=0
-        cv2.imshow('', img)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows() 
+fps.stop()
+print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
+cv2.destroyAllWindows()
+vs.stop()
