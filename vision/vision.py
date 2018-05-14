@@ -5,6 +5,7 @@ from WebcamVideoSteam import WebcamVideoStream
 from imutils.video import FPS
 import redis
 import json
+from robotvision import RobotVision as rv
 
 corner_lower=np.array([75,106,120])
 corner_upper=np.array([90,210,200])
@@ -59,24 +60,35 @@ def find_puck(img_src):
 
     return x,y,w,h
 
-def get_contours(img_src, thresh):
-    # Convert image to grayscale
-    gray = cv2.cvtColor(img_src, cv2.COLOR_RGB2GRAY)
-
-    #threshold to only show white in a b&w image
-    t, bw = cv2.threshold(gray, thresh, 255, cv2.THRESH_BINARY)
-
-    #remove noise
-    opened=cv2.morphologyEx(bw,cv2.MORPH_OPEN, np.ones((11,60)))
-    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((10,10)))
-
-    #get contours
-    image2, contours, hierarchy = cv2.findContours(closed,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
-    return contours
-
 def find_trapezoid(img_src):
-    return None
+    wk_img = img_src.copy()
+
+    bw_img = rv.get_bw_img(wk_img)
+    clean_img = rv.remove_noise(bw_img)
+    res_img, contours, hierarchy = cv2.findContours(clean_img.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+    if (len(contours) > 10):
+        print 'There are too many contours to be accurate!', len(contours)
+
+
+        contours = None
+        max_try = 10
+        for i in range(0,max_try):
+            kernel_increase=60+i+1
+            clean_img = rv.remove_noise(bw_img, kernel_open=np.zeroes(1,kernel_increase))
+            res_img, contours, hierarchy = cv2.findContours(clean_img.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+
+            if len(contours <= 10):
+                break
+
+    contour_points = rv.get_contour_points(contours)
+    
+    # returned shape starts with bottom-left and 3 other points are
+    # counter clockwise
+    board_shape=get_board_shape(contour_points)
+
+    return board_shape
+        
 
 
 vs = WebcamVideoStream(src=1)
@@ -146,6 +158,9 @@ while(True):
             # box = cv2.boxPoints(rect)
             # box = np.int0(box)
             #cv2.drawContours(img,[box],0,(255,0,0),2)
+
+            trap = find_trapezoid(working_img)
+            
             if frameCt % 100 == 0:
                 contours = get_contours(vs.read().copy(), 100)
 
