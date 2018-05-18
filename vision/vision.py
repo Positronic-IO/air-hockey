@@ -6,15 +6,6 @@ from imutils.video import FPS
 #import redis
 import json
 
-corner_lower=np.array([75,106,120])
-corner_upper=np.array([90,210,200])
-
-side_lower = np.array([47,47,110])
-side_upper = np.array([62,112,174])
-
-goal_lower = np.array([17,114,87])
-goal_upper = np.array([26,168,111])
-
 
 # Hard corded corner points
 top_left = (636, 55)
@@ -44,216 +35,189 @@ def find_intersection(L1, L2):
 def get_bw_img(image, threshold=150):
     wk_img = image.copy()
     
-    # Convert image to grayscale
-    gray = cv2.cvtColor(wk_img, cv2.COLOR_BGR2GRAY)
-    
     # Apply threshold to grayscale img. (Converts to b&w)
-    t, bw = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    t, bw = cv2.threshold(wk_img, threshold, 255, cv2.THRESH_BINARY)
+    #cv2.imshow('Global Threshold', bw)
     
     return bw.copy()
 
-def remove_noise(image, kernel_open=None, kernel_close=None):
+def remove_noise(image):
     wk_img=image.copy()
     
     # Baseline params
-    if kernel_open is None:
-        kernel_open = np.ones((10,30))
+    kernel1=5
+    kernel2=60
+    while True:    
+        kernel = np.ones((kernel1,kernel2))
+        opened=cv2.morphologyEx(wk_img,cv2.MORPH_OPEN, kernel)    
 
-    if kernel_close is None:
-        kernel_close = np.ones((10,10))
+        zero_count_l=np.count_nonzero(opened[:,:120])
+        zero_count_r=np.count_nonzero(opened[:,1780:])
+        if zero_count_l > 0 or zero_count_r > 0:
+            #kernel1+=1 // maybe? for now let's not.
+            kernel2+=1
+        else:
+            #print "Kernel:",(kernel1,kernel2)
+            break
 
-    # we only want large objects since we are trying to detect
-    # the board. 1x60 is a good starting point. Can call again
-    # with override if the result is not good enough.
-    # this cleans up the outside noise
-    opened=cv2.morphologyEx(wk_img,cv2.MORPH_OPEN, kernel_open)
-
-    #cv2.imshow('Open', opened)
-    
     # this cleans up the noise on the inside and reduces the number of
-    # objects.
-    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, kernel_close)
-
-    #cv2.imshow('Close', closed)
+    # objects/contours.
+    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((10,10)))
     
     return closed.copy()
 
-def get_contour_points(contours):
-    pts = []
-    for i in range(0, len(contours)):
-        for j in range(0, len(contours[i])):
-            pts.append(contours[i][j])
+def find_homograpy_points(img_src):
+    #todo: Split this guy out into functions
+    wk_img = img_src.copy()
 
-    return np.array(pts)
+    gray = cv2.cvtColor(wk_img, cv2.COLOR_BGR2GRAY)
+    bw_img = get_bw_img(image=gray, threshold=140)
 
-def get_board_shape(points):
+    clean_img = remove_noise(bw_img)
 
-    # first, get minarearect and get box points from the rect.
-    rect = cv2.minAreaRect(points)
+    zero_count=np.count_nonzero(clean_img)
+    #print "Zero-Count:", zero_count
+
+    edges = cv2.Canny(clean_img,1,1)
+
+    xs, ys = np.where(edges > 0)
+    edgePts=np.array(zip(ys,xs))
+
+    rect = cv2.minAreaRect(edgePts)
     box = cv2.boxPoints(rect)
     box = np.int0(box)
-    
-    # convert points to tuple
+
+    # # convert box points to tuple
     rect_bot_left=tuple(box[0])
     rect_top_left=tuple(box[1])
     rect_top_right=tuple(box[2])
     rect_bot_right=tuple(box[3])
-    
-    # Next get min triangle, get those points.
-    a, triangle = cv2.minEnclosingTriangle(points)
-    return np.array([ (int(point[0]), int(point[1])) for point in triangle[:,0]])
+
+    # Fit triangle around edgepoints
+    a, triangle = cv2.minEnclosingTriangle(np.array([edgePts]))
+
+    # get proper points of the triangle...
+    tri_t=triangle[0]
+    tri_l=triangle[0]
+    tri_r=triangle[0]
+
+    for i in range(len(triangle)):
+        if triangle[i][0][1] < tri_t[0][1]:
+            tri_t=triangle[i]
+          
+        if triangle[i][0][0] < tri_l[0][0]:
+            tri_l=triangle[i]
+          
+        if triangle[i][0][0] > tri_r[0][0]:
+            tri_r=triangle[i]
 
     # Convert the points to tuple
-    tri_bot_right=tuple(triangle[0][0])
-    tri_top=tuple(triangle[1][0])
-    tri_bot_left=tuple(triangle[2][0])
-    
+    tri_bot_right=tuple(tri_r[0])
+    tri_top=tuple(tri_t[0])
+    tri_bot_left=tuple(tri_l[0])
+
     rect_top=line(rect_top_left, rect_top_right)
     tri_left=line(tri_bot_left, tri_top)
     tri_right=line(tri_bot_right, tri_top)
-    
+
     l_intersection=find_intersection(rect_top, tri_left)
     r_intersection=find_intersection(rect_top, tri_right)
 
-    #returned in counter-clockwise from bottom-left
-    #   botom_left
-    #   botom_right
-    #   top_right
-    #   top_left
-    if l_intersection and r_intersection:
-        return np.array([
-            (int(tri_bot_left[0]), int(tri_bot_left[1])),
-            (int(tri_bot_right[0]), int(tri_bot_right[1])),
-            (int(r_intersection[0]), int(r_intersection[1])),
-            (int(l_intersection[0]), int(r_intersection[1]))
-        ])
-    else:
-        return np.asarray([])
+    homography_points = np.array([
+        (int(tri_bot_left[0]), int(tri_bot_left[1])),
+        (int(tri_bot_right[0]), int(tri_bot_right[1])),
+        (int(r_intersection[0]), int(r_intersection[1])),
+        (int(l_intersection[0]), int(l_intersection[1]))
+    ])
 
-def get_homographic_image(img_src):
+    # Preview
+    # disp=working_img.copy()
+    # cv2.drawContours(disp,[box],0,(255,0,255),2)
+    # img = cv2.line(disp, tri_bot_left, tri_top, (255,255,0), 2)
+    # img = cv2.line(disp, tri_top, tri_bot_right, (255,255,0), 2)
+    # img = cv2.line(disp, tri_bot_right, tri_bot_left, (255,255,0), 2)
+    # img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
+    # cv2.imshow('edges', edges)
+    # cv2.imshow('Mapping', disp)
+
+    return homography_points
+        
+def get_homographic_image(image, homography_points):
+    wk_img=image.copy()
 
     pts_src = np.array(
-    [
-        [bot_left[0], bot_left[1]],
-        [bot_right[0], bot_right[1]],
-        [top_right[0], top_right[1]],
-        [top_left[0], top_left[1]]    ]
+        [
+            homography_points[0],
+            homography_points[1],
+            homography_points[2],
+            homography_points[3]
+        ]
     )
     pts_dst = np.array(
         [
-            [0, 699],
-            [399, 699],
-            [399, 0],
+            [0, 639],
+            [479, 639],
+            [479, 0],
             [0, 0]        
         ]
     )
 
     h, status = cv2.findHomography(pts_src, pts_dst)
-    warped = cv2.warpPerspective(img_src, h, (400, 700))
-    return warped
+    warped = cv2.warpPerspective(wk_img, h, (480, 640))
 
-def find_puck(img_src):
-    puckImage = img_src.copy()
+    return warped.copy()
 
-    hsv_image=cv2.cvtColor(puckImage, cv2.COLOR_RGB2HSV)
-    #hsv_mask=cv2.inRange(hsv_image,np.array([12,100,135]),np.array([30,150,200]))
-    hsv_mask=cv2.inRange(hsv_image,np.array([20,100,100]),np.array([30,200,200]))
+def find_puck(image):
+    wk_img = image.copy()
 
-    opened=cv2.morphologyEx(hsv_mask,cv2.MORPH_OPEN, np.ones((9,9)))
-    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((11,11)))
+    # conver to rgb, puck stands out better.
+    rgb = cv2.cvtColor(wk_img, cv2.COLOR_BGR2RGB)
 
-    edges = cv2.Canny(closed,255,255)
-    x,y,w,h = cv2.boundingRect(edges)
+    pucklowerBound=np.array([0,0,110])
+    puckupperBound=np.array([75,255,200])
 
-    return x,y,w,h
+    mask=cv2.inRange(rgb,pucklowerBound,puckupperBound)
+    opened=cv2.morphologyEx(mask,cv2.MORPH_OPEN, np.ones((1,3)))
+    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((20,20)))
 
-def find_homograpy_points(img_src):
-    wk_img = img_src.copy()
+    #previews
+    xs, ys = np.where(closed > 0)
+    pts = np.array(zip(ys, xs))
 
-    bw_img = get_bw_img(wk_img)
-    clean_img = remove_noise(bw_img)
-    #res_img, contours, hierarchy = cv2.findContours(clean_img.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    if (len(pts) > 0):
+        center, radius = cv2.minEnclosingCircle(pts)
 
-    #if (len(contours) < 10):
-        #print 'There are too many contours to be accurate!', len(contours)
+        return tuple(np.int0(center)), int(radius)
+    else:
+        print 'Puck Not Detected'
+        return (0,0), 0
 
+def find_bot(image):
+    wk_img = image.copy()
 
-        #contours = None
-        #max_try = 10
-        #for i in range(0,max_try):
-            #kernel_increase=60+i+1
-            #kernel_o=np.zeroes((1,kernel_increase))
-            #kernel_c=np.ones((50,60))
+    hsv = cv2.cvtColor(wk_img, cv2.COLOR_RGB2HSV)
+    # Don't care about top part of the board...
+    hsv[0:200,:,:] = 0 
 
-            #clean_img = remove_noise(bw_img, kernel_o, kernel_c)
-            #res_img, contours, hierarchy = cv2.findContours(clean_img.copy(),cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+    botlowerBound=np.array([120,150,100])
+    botupperBound=np.array([130,255,150])
 
-            #if len(contours <= 10):
-                #break
+    mask=cv2.inRange(hsv,botlowerBound,botupperBound)
 
-    #contour_points = get_contour_points(contours)
-        
-        # returned shape starts with bottom-left and 3 other points are
-        # counter clockwise
+    opened=cv2.morphologyEx(mask,cv2.MORPH_OPEN, np.ones((10,5)))
+    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((50,50)))
 
-    edges = cv2.Canny(clean_img,255,255)
+    #previews
+    xs, ys = np.where(closed > 0)
+    pts = np.array(zip(ys, xs))
 
-    cv2.imshow('canny', edges)
+    if (len(pts) > 0):
+        center, radius = cv2.minEnclosingCircle(pts)
 
-    xs, ys = np.where(clean_img > 0)
-    edgePts = np.array(zip(ys,xs))
-
-    rect = cv2.minAreaRect(edgePts)
-    box = cv2.boxPoints(rect)
-    box = np.int0(box)
-    cv2.drawContours(wk_img,[box],0,(0,0,255),2)
-
-    # convert points to tuple
-    rect_bot_left=tuple(box[0])
-    rect_top_left=tuple(box[1])
-    rect_top_right=tuple(box[2])
-    rect_bot_right=tuple(box[3])
-
-    a, triangle = cv2.minEnclosingTriangle(np.array([edgePts]))
-
-    img = cv2.line(wk_img, (triangle[0][0][0],triangle[0][0][1]), (triangle[1][0][0], triangle[1][0][1]), (255,255,0), 5)
-    img = cv2.line(wk_img, (triangle[1][0][0],triangle[1][0][1]), (triangle[2][0][0], triangle[2][0][1]), (255,255,0), 5)
-    img = cv2.line(wk_img, (triangle[2][0][0],triangle[2][0][1]), (triangle[0][0][0], triangle[0][0][1]), (255,255,0), 5)
-
-    
-
-    # Convert the points to tuple
-    tri_bot_right=tuple(triangle[0][0])
-    tri_top=tuple(triangle[1][0])
-    tri_bot_left=tuple(triangle[2][0])
-
-    rect_top=line(rect_top_left, rect_top_right)
-    tri_left=line(tri_bot_left, tri_top)
-    tri_right=line(tri_bot_right, tri_top)
-
-    l_intersection=find_intersection(rect_top, tri_left)
-    r_intersection=find_intersection(rect_top, tri_right)
-
-    print 'l_intersection:', l_intersection
-    print 'r_intersection:', r_intersection
-
-    board_shape = np.array([
-        (int(tri_bot_left[0]), int(tri_bot_left[1])),
-        (int(tri_bot_right[0]), int(tri_bot_right[1])),
-        (int(r_intersection[0]), int(r_intersection[1])),
-        (int(l_intersection[0]), int(r_intersection[1]))
-    ])
-
-    cv2.circle(wk_img, (board_shape[0][0],board_shape[0][1]), 40, (255, 0, 255), -1)
-    cv2.circle(wk_img, (board_shape[1][0],board_shape[1][1]), 40, (255, 0, 255), -1)
-    cv2.circle(wk_img, (board_shape[2][0],board_shape[2][1]), 40, (255, 0, 255), -1)
-    cv2.circle(wk_img, (board_shape[3][0],board_shape[3][1]), 40, (255, 0, 255), -1)
-
-    cv2.imshow('sample', wk_img)
-
-    return board_shape
-        
-
+        return tuple(np.int0(center)), int(radius)
+    else:
+        print 'Bot Not Detected'
+        return (0,0), 0
 
 vs = WebcamVideoStream(src=1)
 vs = vs.start()
@@ -274,65 +238,13 @@ while(True):
         # cv2.imshow("Orig", img)
         try:     
             working_img = img.copy()
-            
-            #hsv_image=cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-            #corner_mask=getHSVMask(hsv_image.copy(),corner_lower,corner_upper)
-            #corner_mask_open,corner_mask_close=getOpenCloseMask(corner_mask)
-            #side_mask = getHSVMask(hsv_image.copy(),side_lower, side_upper)
-            #side_mask_open, side_mask_close = getOpenCloseMask(side_mask)
-            #goal_mask = getHSVMask(hsv_image.copy(),goal_lower, goal_upper)
-            #goal_mask_open, goal_mask_close = getOpenCloseMask(goal_mask)
-            
-            #warped = get_homographic_image(img)
-            #px,py,pw,ph = find_puck(warped)
-            #puck_rect=cv2.rectangle(warped,(px,py),(px+pw,py+ph),(0,255,0),1)
-
-            # centerW = pw/2
-            # centerH = ph/2
-
-            # centerx=px+centerW
-            # centery=py+centerH
-
-            # cv2.circle(warped, (centerx, centery), 8, (0, 255, 0), -1)
-            # cv2.imshow("Homographic With Puck Detection", warped)
-
-            # p=json.loads("{\"x\":0,\"y\":0}")
-            # p['x'] = centerx
-            # p['y'] = centery
-            
-            # r.set("machine-state-puck", json.dumps(p))
-            # r.publish('state-changed', True)
-
-            # todo: make this recursive?
-            # If we have more than 15 contours, it's likely that our threshold is too low.
-
-            #if contours is None:
-                #contours = get_contours(working_img, 100)
-
-            # if (len(contours) > 15):
-            #      print "Too many contours..."
-            #      contours = get_contours(img, 115)
-
-            # contourPts = []
-            # for i in range(0, len(contours)):
-            #     for j in range(0, len(contours[i])):
-            #         contourPts.append(contours[i][j])
-
-            # contourPts = np.array(contourPts)
-
-            # rect = cv2.minAreaRect(contourPts)
-            # box = cv2.boxPoints(rect)
-            # box = np.int0(box)
-            #cv2.drawContours(img,[box],0,(255,0,0),2)
 
             h_points = np.asarray([])
             if frameCt < 100:
                 h_points = find_homograpy_points(working_img)
 
-            if frameCt % 200 == 0:
+            if frameCt % 800 == 0:
                 h_points = find_homograpy_points(working_img)
-
-            disp_img=working_img.copy()
 
             if not cur_h_points.any():
                 cur_h_points = h_points
@@ -346,33 +258,32 @@ while(True):
                         #cur_h_points = h_points
                         cur_h_points = np.mean( np.array([ cur_h_points, h_points ]), axis=0, dtype=np.int32)
 
-            # if h_points is not False:
-            #     cur_h_points = h_points
-                
+            h_img = get_homographic_image(working_img, cur_h_points)            
 
-            if cur_h_points is not False:
-                img = cv2.line(disp_img, tuple(cur_h_points[0]), tuple(cur_h_points[1]), (255,255,0), 5)
-                img = cv2.line(disp_img, tuple(cur_h_points[1]), tuple(cur_h_points[2]), (255,255,0), 5)
-                img = cv2.line(disp_img, tuple(cur_h_points[2]), tuple(cur_h_points[3]), (255,255,0), 5)
-                img = cv2.line(disp_img, tuple(cur_h_points[3]), tuple(cur_h_points[0]), (255,255,0), 5)
 
-            #cv2.drawContours(working_img,contours,-1,(255,0,0),2)
+            puck_center, puck_radius = find_puck(h_img)
+            bot_center, bot_radius = find_bot(h_img)
 
-            # a, triangle = cv2.minEnclosingTriangle(contourPts)
-            
-            # img = cv2.line(img, (triangle[0][0][0],triangle[0][0][1]), (triangle[1][0][0], triangle[1][0][1]), (255,255,0), 2)
-            # img = cv2.line(img, (triangle[1][0][0],triangle[1][0][1]), (triangle[2][0][0], triangle[2][0][1]), (255,255,0), 2)
-            # img = cv2.line(img, (triangle[2][0][0],triangle[2][0][1]), (triangle[0][0][0], triangle[0][0][1]), (255,255,0), 2)
+            print "Puck Center:", puck_center
+            print "Bot Center:", bot_center
 
-            # print 'Contours: ', len(contours)
-            #cv2.imshow('edges', edges)
-
+            ###### Display Preview
+            disp_img = h_img.copy()
             font = cv2.FONT_HERSHEY_SIMPLEX
             ftext='Frame: ' + str(frameCt)
             cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
 
             fps_text='FPS: ' + str(cur_fps)
-            cv2.putText(disp_img,fps_text,(10,100), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+            cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+
+            puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
+            cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+
+            bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
+            cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+
+            img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
+            img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
 
             cv2.imshow("Preview", disp_img)
 
