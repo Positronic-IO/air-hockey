@@ -3,7 +3,7 @@ import cv2
 import imutils
 from WebcamVideoSteam import WebcamVideoStream
 from imutils.video import FPS
-#import redis
+import redis
 import json
 
 
@@ -219,6 +219,24 @@ def find_bot(image):
         print 'Bot Not Detected'
         return (0,0), 0
 
+def set_puck_state(puck_pos):
+    # make dictionary to be serialized to json
+    p = json.loads("{\"x\":0,\"y\":0}")
+    p['x'] = puck_pos[0]
+    p['y'] = puck_pos[1]
+
+    r.set("machine-state-puck", json.dumps(p))
+    r.publish('state-changed', True)
+
+def set_bot_state(bot_pos):
+    # make dictionary to be serialized to json
+    b = json.loads("{\"x\":0,\"y\":0}")
+    b['x'] = bot_pos[0]
+    b['y'] = bot_pos[1]
+
+    r.set("machine-state-bot", json.dumps(b))
+    r.publish('state-changed', True)
+
 vs = WebcamVideoStream(src=1)
 vs = vs.start()
 fps = FPS().start()
@@ -231,7 +249,7 @@ cur_h_points=np.asarray([])
 counter = 0
 #contours = np.vstack(contours).squeeze()
 
-#r=redis.StrictRedis(host='localhost',port=6379,db=0)
+r=redis.StrictRedis(host='localhost',port=6379,db=0)
 while(True):
     img = vs.read()
     if img is not None:
@@ -264,28 +282,31 @@ while(True):
             puck_center, puck_radius = find_puck(h_img)
             bot_center, bot_radius = find_bot(h_img)
 
-            print "Puck Center:", puck_center
-            print "Bot Center:", bot_center
+            #print "Puck Center:", puck_center
+            #print "Bot Center:", bot_center
+
+            set_puck_state(puck_center)
+            set_bot_state(bot_center)
 
             ###### Display Preview
-            disp_img = h_img.copy()
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            ftext='Frame: ' + str(frameCt)
-            cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
+            # disp_img = h_img.copy()
+            # font = cv2.FONT_HERSHEY_SIMPLEX
+            # ftext='Frame: ' + str(frameCt)
+            # cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
 
-            fps_text='FPS: ' + str(cur_fps)
-            cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+            # fps_text='FPS: ' + str(cur_fps)
+            # cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
 
-            puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
-            cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+            # puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
+            # cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
-            cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+            # bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
+            # cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
-            img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
+            # img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
+            # img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
 
-            cv2.imshow("Preview", disp_img)
+            # cv2.imshow("Preview", disp_img)
 
             fps.update()
             frames += 1
@@ -298,6 +319,7 @@ while(True):
             cur_fps = frames
             frames = 0
             start = time.time()
+            print "FPS:", cur_fps
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
