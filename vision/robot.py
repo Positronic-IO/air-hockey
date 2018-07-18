@@ -17,10 +17,10 @@ class Robot:
         self.current_pos_y_high = chr(0)
 
         self.speed_low = chr(255)
-        self.speed_high = chr(50)
+        self.speed_high = chr(200)
 
         self.accel_low = chr(255)
-        self.accel_high = chr(50)
+        self.accel_high = chr(200)
 
         self.target_x_low = chr(0)
         self.target_x_high = chr(0)
@@ -29,6 +29,7 @@ class Robot:
         self.target_y_high = chr(0)
 
     def goto(self, x, y, wait=False):
+
         self.target_x_low  = chr( x & 0xff)
         self.target_x_high = chr((x & 0xff00) >> 8)
         self.target_y_low  = chr( y & 0xff)

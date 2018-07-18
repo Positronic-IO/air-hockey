@@ -7,11 +7,9 @@ import redis
 import json
 
 
-# Hard corded corner points
-top_left = (636, 55)
-top_right = (1213, 28)
-bot_right = (1892 ,  866)
-bot_left = (48, 949)
+board_w=480
+borad_h=640
+board_w_mm=484.
 
 #Return a line based on two points.
 def line(p1, p2):
@@ -131,14 +129,14 @@ def find_homograpy_points(img_src):
     ])
 
     # Preview
-    # disp=working_img.copy()
-    # cv2.drawContours(disp,[box],0,(255,0,255),2)
-    # img = cv2.line(disp, tri_bot_left, tri_top, (255,255,0), 2)
-    # img = cv2.line(disp, tri_top, tri_bot_right, (255,255,0), 2)
-    # img = cv2.line(disp, tri_bot_right, tri_bot_left, (255,255,0), 2)
-    # img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
+    disp=working_img.copy()
+    cv2.drawContours(disp,[box],0,(255,0,255),2)
+    img = cv2.line(disp, tri_bot_left, tri_top, (255,255,0), 2)
+    img = cv2.line(disp, tri_top, tri_bot_right, (255,255,0), 2)
+    img = cv2.line(disp, tri_bot_right, tri_bot_left, (255,255,0), 2)
+    img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
     # cv2.imshow('edges', edges)
-    # cv2.imshow('Mapping', disp)
+    cv2.imshow('Mapping', disp)
 
     return homography_points
         
@@ -163,7 +161,7 @@ def get_homographic_image(image, homography_points):
     )
 
     h, status = cv2.findHomography(pts_src, pts_dst)
-    warped = cv2.warpPerspective(wk_img, h, (480, 640))
+    warped = cv2.warpPerspective(wk_img, h, (board_w, borad_h))
 
     return warped.copy()
 
@@ -237,7 +235,17 @@ def set_bot_state(bot_pos):
     r.set("machine-state-bot", json.dumps(b))
     r.publish('state-changed', True)
 
-vs = WebcamVideoStream(src=1)
+def set_board_state():
+    # Put the board params in the state machine.
+    board=json.loads("{\"pxw\":0,\"pxh\":0,\"mmw\":0}")
+    board['pxw'] = board_w
+    board['pxh'] = borad_h
+    board['mmw'] = board_w_mm
+    board['miny'] = 65
+
+    r.set('machine-state', json.dumps(board))
+
+vs = WebcamVideoStream(src=2)
 vs = vs.start()
 fps = FPS().start()
 import time
@@ -250,10 +258,12 @@ counter = 0
 #contours = np.vstack(contours).squeeze()
 
 r=redis.StrictRedis(host='localhost',port=6379,db=0)
+set_board_state()
+
 while(True):
     img = vs.read()
     if img is not None:
-        # cv2.imshow("Orig", img)
+        cv2.imshow("Orig", img)
         try:     
             working_img = img.copy()
 
@@ -261,7 +271,7 @@ while(True):
             if frameCt < 100:
                 h_points = find_homograpy_points(working_img)
 
-            if frameCt % 800 == 0:
+            if frameCt % 1000 == 0:
                 h_points = find_homograpy_points(working_img)
 
             if not cur_h_points.any():
@@ -289,24 +299,24 @@ while(True):
             set_bot_state(bot_center)
 
             ###### Display Preview
-            # disp_img = h_img.copy()
-            # font = cv2.FONT_HERSHEY_SIMPLEX
-            # ftext='Frame: ' + str(frameCt)
-            # cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
+            disp_img = h_img.copy()
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            ftext='Frame: ' + str(frameCt)
+            cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
 
-            # fps_text='FPS: ' + str(cur_fps)
-            # cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+            fps_text='FPS: ' + str(cur_fps)
+            cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
 
-            # puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
-            # cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+            puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
+            cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            # bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
-            # cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+            bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
+            cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            # img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
-            # img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
+            img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
+            img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
 
-            # cv2.imshow("Preview", disp_img)
+            cv2.imshow("Preview", disp_img)
 
             fps.update()
             frames += 1
