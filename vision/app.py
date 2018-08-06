@@ -245,7 +245,7 @@ def set_board_state():
 
     r.set('machine-state', json.dumps(board))
 
-vs = WebcamVideoStream(src=2)
+vs = WebcamVideoStream(src=1)
 vs = vs.start()
 fps = FPS().start()
 import time
@@ -261,7 +261,7 @@ r=redis.StrictRedis(host='localhost',port=6379,db=0)
 set_board_state()
 
 while(True):
-    img = vs.read()
+    img = imutils.resize(vs.read(), width=1024)
     if img is not None:
         cv2.imshow("Orig", img)
         try:     
