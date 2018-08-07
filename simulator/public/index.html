@@ -10,12 +10,8 @@
         body{ background-color: ivory; }
         #sim-canvas {
             border:1px solid green;
-        }
-
-        #state-canvas{
-            border: 1px solid red;
-            position: relative;
-            left: 150px;
+            background: transparent;
+            z-index: 500;
         }
 
         #canvas-container {
@@ -35,9 +31,6 @@
     <div style="width:100%" id="canvas-container">
         <div>
             <canvas id="sim-canvas" width=600 height=700></canvas>
-        </div>
-        <div>
-            <canvas id="state-canvas" width=600 height="700"></canvas>
         </div>
     </div>
 
@@ -87,7 +80,7 @@
 
         // redraw the scene
         function draw_sim() {
-            clear_sim();
+            // clear_sim();
 
             simCtx.fillStyle = sim_puck.fill;
             drawSimPuck(sim_puck.x,sim_puck.y,sim_puck.radius);
@@ -156,7 +149,7 @@
                 });
 
                 // redraw the scene with the new rect positions
-                draw_sim();
+                draw_state();
 
                 // reset the starting mouse position for the next mousemove
                 startX = mx;
@@ -177,30 +170,19 @@
             .then(response => response.json());
         }
     
-        // ######################## Simulator ########################
-
         // ######################## STATE ############################
-
-        // get canvas related references
-        var stateCanvas = document.getElementById("state-canvas");
-        var stateCtx = stateCanvas.getContext("2d");
-        var statebb = stateCanvas.getBoundingClientRect();
-        var stateOffsetX = statebb.left;
-        var stateOffsetY = statebb.top;
-        var STATE_WIDTH = stateCanvas.width;
-        var STATE_HEIGHT = stateCanvas.height;
 
         // an array of objects that define different rectangles
         var state_puck = {
-            x: STATE_WIDTH / 2,
+            x: SIM_WIDTH / 2,
             y:50,
             radius: 20,
             fill:"#000000"
         };
 
         var state_bot = {
-            x: STATE_WIDTH / 2,
-            y: STATE_HEIGHT - 50,
+            x: SIM_WIDTH / 2,
+            y: SIM_HEIGHT - 50,
             radius: 15,
             fill: "red"
         }
@@ -244,38 +226,42 @@
         setPuckStatePosition();
 
         function drawStatePuck(x,y,r) {
-            stateCtx.beginPath();
-            stateCtx.arc(x,y,r,0,Math.PI*2);
-            stateCtx.closePath();
-            stateCtx.fill();
+            simCtx.beginPath();
+            simCtx.arc(x,y,r,0,Math.PI*2);
+            simCtx.closePath();
+            simCtx.fill();
         }
 
         function drawStateBot(x,y,r) {
-            stateCtx.beginPath();
-            stateCtx.arc(x,y,r,0,Math.PI*2);
-            stateCtx.closePath();
-            stateCtx.fill();
+            simCtx.beginPath();
+            simCtx.arc(x,y,r,0,Math.PI*2);
+            simCtx.closePath();
+            simCtx.fill();
         }
 
 
-
-        // clear the canvas
-        function clear_state() {
-            stateCtx.clearRect(0, 0, STATE_WIDTH, STATE_HEIGHT);
-
-            stateCtx.fillStyle = "#cecece";
-            stateCtx.fillRect(0,0,STATE_WIDTH, STATE_HEIGHT);
+        function drawLine() {
+            simCtx.beginPath();
+            simCtx.moveTo(0, 450-state_bot.radius);
+            simCtx.lineTo(600, 450-state_bot.radius);
+            simCtx.strokeStyle = '#ccc';
+            simCtx.stroke();
         }
 
         // redraw the scene
         function draw_state() {
-            clear_state();
+            clear_sim();
 
-            stateCtx.fillStyle = state_puck.fill;
+            drawLine();
+            
+            simCtx.fillStyle = state_puck.fill;
             drawStatePuck(state_puck.x,state_puck.y,state_puck.radius);
 
-            stateCtx.fillStyle = state_bot.fill;
+            simCtx.fillStyle = state_bot.fill;
             drawStateBot(state_bot.x,state_bot.y,state_bot.radius);
+
+            simCtx.fillStyle = sim_puck.fill;
+            drawSimPuck(sim_puck.x,sim_puck.y,sim_puck.radius);
         }
 
         // ######################## STATE ############################
