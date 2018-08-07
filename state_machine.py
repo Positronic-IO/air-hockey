@@ -7,6 +7,8 @@ import math
 r = redis.StrictRedis(host="localhost", port=6379, db=0)
 p = r.pubsub(ignore_subscribe_messages=True)
 
+min_y = 450
+
 def meet_the_puck(puck_state, bot_state):
     speed = 5
     p = json.loads(puck_state)
@@ -35,6 +37,9 @@ def meet_the_puck(puck_state, bot_state):
         new_b['x'] -= cx
         new_b['y'] -= cy
         
+        if new_b['y'] < min_y:
+            new_b['y'] = min_y
+
         r.set("machine-state-bot", json.dumps(new_b))
         r.publish('state-changed', True)
 
