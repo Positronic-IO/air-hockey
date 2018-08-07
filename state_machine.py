@@ -10,7 +10,7 @@ p = r.pubsub(ignore_subscribe_messages=True)
 min_y = 450
 
 def meet_the_puck(puck_state, bot_state):
-    speed = 5
+    speed = 30
     p = json.loads(puck_state)
     b = json.loads(bot_state)
 
