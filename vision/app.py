@@ -76,7 +76,25 @@ def find_homograpy_points(img_src):
     zero_count=np.count_nonzero(clean_img)
     #print "Zero-Count:", zero_count
 
-    edges = cv2.Canny(clean_img,1,1)
+    no_lava_pass_1 = np.zeros_like(clean_img)
+    kernel = np.ones((5,5),np.uint8)
+    dilation = cv2.dilate(clean_img, kernel, iterations = 3)
+    im2, contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    off_edge = [contour for contour in contours if np.count_nonzero(contour) == contour.shape[0] * contour.shape[1] * contour.shape[2]]
+    cv2.drawContours(no_lava_pass_1, off_edge, -1, (255,255,255), cv2.FILLED)
+
+    no_lava_pass_2 = np.zeros_like(no_lava_pass_1)
+    flipped = cv2.flip(no_lava_pass_1, 0)
+    kernel = np.ones((5,5),np.uint8)
+    dilation = cv2.dilate(flipped, kernel, iterations = 5)
+    im2, contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    off_edge2 = [contour for contour in contours if np.count_nonzero(contour) == contour.shape[0] * contour.shape[1] * contour.shape[2]]
+    big_contour = max(contours, key = cv2.contourArea)
+    cv2.drawContours(no_lava_pass_2, [big_contour], -1, (255,255,255), 3)
+    edges = cv2.flip(no_lava_pass_2, 0)
+
+    #edges = cv2.Canny(no_lava,1,1)
+    #cv2.imshow('debug', edges)
 
     xs, ys = np.where(edges > 0)
     edgePts=np.array(zip(ys,xs))
@@ -245,7 +263,7 @@ def set_board_state():
 
     r.set('machine-state', json.dumps(board))
 
-vs = WebcamVideoStream(src=1)
+vs = WebcamVideoStream(src=0)
 vs = vs.start()
 fps = FPS().start()
 import time
@@ -263,7 +281,7 @@ set_board_state()
 while(True):
     img = imutils.resize(vs.read(), width=1024)
     if img is not None:
-        cv2.imshow("Orig", img)
+        #cv2.imshow("Orig", img)
         try:     
             working_img = img.copy()
 
