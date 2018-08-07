@@ -7,6 +7,8 @@ from vision import robot
 
 #sleep_time = 0.015
 sleep_time = 0.015
+fast = 100
+slow = 50
 
 fluffy = robot.Robot()
 fluffy.speed_low = chr(255)
@@ -20,7 +22,7 @@ p = r.pubsub(ignore_subscribe_messages=True)
 min_y = 450
 
 def meet_the_puck(puck_state, bot_state):
-    speed = 30
+    speed = fast
     p = json.loads(puck_state)
     b = json.loads(bot_state)
 
@@ -36,12 +38,12 @@ def meet_the_puck(puck_state, bot_state):
     d = math.hypot(dx, dy)
     
     if d > 100:
-        speed = 10
+        speed = slow
     
     if abs(d) > 30:
         # calculate the change to the position
-        cx = speed * dx/d
-        cy = speed * dy/d
+        cx = min(speed * dx/d, dx)
+        cy = min(speed * dy/d, dy)
         
         new_b = b
         new_b['x'] -= int(cx)
