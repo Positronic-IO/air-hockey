@@ -95,10 +95,27 @@ def find_homograpy_points(img_src):
     #cv2.imshow('clean', clean_img)
 
     edges = cv2.Canny(clean_img,1,1)
-    cv2.imshow('debug', edges)
+    #cv2.imshow('debug', edges)
+    
+    no_lava = np.zeros_like(edges)
+    im2, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cv2.drawContours(no_lava, contours, -1, (255,255,255), 3)
 
-    edgePts=np.argwhere(edges)
+    line = np.zeros_like(no_lava)
+    line[:, 500:501] = 1
 
+    touches_line = []
+    for contour in contours:
+        touches = np.zeros_like(no_lava)
+        cv2.drawContours(touches, [contour], -1, (255,255,255), 3)
+        if np.any(touches & line):
+            touches_line.append(contour)
+
+    liners = np.zeros_like(no_lava)
+    cv2.drawContours(liners, touches_line, -1, (255,255,255), 3)
+    cv2.imshow('liners', liners)
+    return False, None
+    
     rect = cv2.minAreaRect(edgePts)
     box = cv2.boxPoints(rect)
     box = np.int0(box)
