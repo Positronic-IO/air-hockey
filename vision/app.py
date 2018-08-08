@@ -5,7 +5,7 @@ import imutils
 from imutils.video import FPS, WebcamVideoStream
 import redis
 import json
-from lib import sift, rects
+from lib import sift, rects, triangles
 
 board_w=480
 borad_h=640
@@ -117,6 +117,8 @@ def find_homograpy_points(img_src):
     
     # Fit triangle around edgepoints
     a, triangle = cv2.minEnclosingTriangle(np.array([np.argwhere(liners.T)]))
+    triangles.append(triangle)
+    triangle = triangles.average() # smooth it out
     tri = np.zeros_like(no_lava)
     tri = cv2.polylines(test_lined, np.int32([triangle]), True, (0, 255, 0), 3)
     cv2.imshow('wrecked', tri)
