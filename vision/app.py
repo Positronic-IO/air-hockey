@@ -265,28 +265,11 @@ while(True):
         frames += 1
         frameCt += 1
 
-
-        working_img = img.copy()
-
-        h_points = np.asarray([])
-        if frameCt < 50:
-            success, h_points = find_homograpy_points(working_img)
-
-        if frameCt % 1000 == 0:
-            success, h_points = find_homograpy_points(working_img)
+        if frameCt < 10 or frameCt % 50 == 0:
+            success, cur_h_points = find_homograpy_points(img)
         if not success:
             continue
 
-        if not cur_h_points.any():
-            cur_h_points = h_points
-        elif h_points.any():
-            if not np.max(h_points - cur_h_points) < 50:
-                cur_h_points = h_points
-            else:
-                counter += 1
-                if counter > 100:
-                    counter = 0
-                    cur_h_points = np.mean( np.array([ cur_h_points, h_points ]), axis=0, dtype=np.int32)
         disp = img.copy()
         cv2.polylines(disp, [cur_h_points], True, (255, 0, 0), 2)
         cv2.imshow('preview', disp)
