@@ -255,8 +255,8 @@ def set_puck_state(puck_pos):
 def set_bot_state(bot_pos):
     # make dictionary to be serialized to json
     b = json.loads("{\"x\":0,\"y\":0}")
-    b['x'] = bot_pos[0]
-    b['y'] = bot_pos[1]
+    b['x'] = int(bot_pos[0])
+    b['y'] = int(bot_pos[1])
 
     r.set("machine-state-bot", json.dumps(b))
     r.publish('state-changed', True)
@@ -282,6 +282,12 @@ cur_fps=0
 cur_h_points=np.asarray([])
 counter = 0
 #contours = np.vstack(contours).squeeze()
+
+puck_center = -1
+puck_radius = -1
+
+bot_center = -1
+bot_radius = -1
 
 r=redis.StrictRedis(host='localhost',port=6379,db=0)
 set_board_state()
