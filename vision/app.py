@@ -290,6 +290,9 @@ while(True):
 
     img = imutils.resize(vs.read(), width=1024)
     if img is not None:
+        frames += 1
+        frameCt += 1
+
         cv2.imshow("raw", img)
 
         working_img = img.copy()
@@ -350,8 +353,6 @@ while(True):
         cv2.imshow("Preview", disp_img)
 
         fps.update()
-        frames += 1
-        frameCt += 1
         
         if time.time() - start > 1:
             cur_fps = frames
