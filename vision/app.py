@@ -114,8 +114,14 @@ def find_homograpy_points(img_src):
     liners = np.zeros_like(no_lava)
     cv2.drawContours(liners, touches_line, -1, (255,255,255), 3)
     cv2.imshow('liners', liners)
-    return False, None
     
+    # Fit triangle around edgepoints
+    a, triangle = cv2.minEnclosingTriangle(np.array([np.argwhere(liners.T)]))
+    tri = np.zeros_like(no_lava)
+    tri = cv2.polylines(test_lined, np.int32([triangle]), True, (0, 255, 0), 3)
+    cv2.imshow('wrecked', tri)
+    return False, None
+
     rect = cv2.minAreaRect(edgePts)
     box = cv2.boxPoints(rect)
     box = np.int0(box)
