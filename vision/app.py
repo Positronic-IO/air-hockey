@@ -262,8 +262,8 @@ def find_bot(image):
 def set_puck_state(puck_pos):
     # make dictionary to be serialized to json
     p = json.loads("{\"x\":0,\"y\":0}")
-    p['x'] = puck_pos[0]
-    p['y'] = puck_pos[1]
+    p['x'] = int(puck_pos[0])
+    p['y'] = int(puck_pos[1])
 
     r.set("machine-state-puck", json.dumps(p))
     r.publish('state-changed', True)
