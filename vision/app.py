@@ -146,6 +146,10 @@ def find_homograpy_points(img_src):
     l_intersection=find_intersection(rect_top, tri_left)
     r_intersection=find_intersection(rect_top, tri_right)
 
+    if not l_intersection or not r_intersection:
+        print("No intersections")
+        return False, None
+
     homography_points = np.array([
         (int(tri_bot_left[0]), int(tri_bot_left[1])),
         (int(tri_bot_right[0]), int(tri_bot_right[1])),
@@ -163,7 +167,7 @@ def find_homograpy_points(img_src):
     # cv2.imshow('edges', edges)
     cv2.imshow('Mapping', disp)
 
-    return homography_points
+    return True, homography_points
         
 def get_homographic_image(image, homography_points):
     wk_img=image.copy()
