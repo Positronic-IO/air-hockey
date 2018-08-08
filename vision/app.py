@@ -1,8 +1,7 @@
 import numpy as np
 import cv2
 import imutils
-from WebcamVideoSteam import WebcamVideoStream
-from imutils.video import FPS
+from imutils.video import FPS, WebcamVideoStream
 import redis
 import json
 
