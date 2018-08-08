@@ -104,8 +104,7 @@ def find_homograpy_points(img_src):
     #edges = cv2.Canny(no_lava,1,1)
     #cv2.imshow('debug', edges)
 
-    xs, ys = np.where(edges > 0)
-    edgePts=np.array(zip(ys,xs))
+    edgePts=np.argwhere(edges)
 
     rect = cv2.minAreaRect(edgePts)
     box = cv2.boxPoints(rect)
@@ -205,10 +204,8 @@ def find_puck(image):
     closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((20,20)))
 
     #previews
-    xs, ys = np.where(closed > 0)
-    pts = np.array(zip(ys, xs))
-
-    if (len(pts) > 0):
+    pts = np.argwhere(closed)
+    if len(pts) > 0:
         center, radius = cv2.minEnclosingCircle(pts)
 
         return tuple(np.int0(center)), int(radius)
@@ -232,9 +229,7 @@ def find_bot(image):
     closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((50,50)))
 
     #previews
-    xs, ys = np.where(closed > 0)
-    pts = np.array(zip(ys, xs))
-
+    pts = np.argwhere(closed)
     if (len(pts) > 0):
         center, radius = cv2.minEnclosingCircle(pts)
 
