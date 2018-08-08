@@ -77,7 +77,6 @@ def find_homograpy_points(img_src):
     wk_img = img_src.copy()
 
     gray = cv2.cvtColor(wk_img, cv2.COLOR_BGR2GRAY)
-    bw_img = get_bw_img(image=gray, threshold=140)
 
     # remove everything outside of the board area
     success, rect = sift.test(gray)
