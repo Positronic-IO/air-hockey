@@ -84,8 +84,8 @@ def find_homograpy_points(img_src):
         return False, None
 
     rects.append(rect)
-    test_lined = cv2.polylines(gray.copy(),[rects.average()],True,255,3, cv2.LINE_AA)
-    cv2.imshow('rect', test_lined)
+    test_lined = cv2.polylines(wk_img.copy(),[rects.average()],True,(255, 0, 0), 3, cv2.LINE_AA)
+    #cv2.imshow('rect', test_lined)
     
     just_rect = np.zeros_like(gray)
     just_rect[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = gray[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
