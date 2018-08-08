@@ -73,115 +73,66 @@ def hide_surrounding_objects(img):
     return img_as_ubyte(segmentation.clear_border(mask))
 
 def find_homograpy_points(img_src):
-    #todo: Split this guy out into functions
     wk_img = img_src.copy()
-
     gray = cv2.cvtColor(wk_img, cv2.COLOR_BGR2GRAY)
 
-    # remove everything outside of the board area
+    # find the bounding rect for the board
     success, rect = sift.test(gray)
     if not success:
         return False, None
-
     rects.append(rect)
-    test_lined = cv2.polylines(wk_img.copy(),[rects.average()],True,(255, 0, 0), 3, cv2.LINE_AA)
-    #cv2.imshow('rect', test_lined)
-    
+    rect = rects.average() # smooth it out
+    test_lined = cv2.polylines(wk_img.copy(),[rect],True,(255, 0, 0), 3, cv2.LINE_AA)    
     just_rect = np.zeros_like(gray)
     just_rect[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = gray[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
+    #cv2.imshow('rect', test_lined)
 
+    # find contours that intersect the midline
     bw_img = get_bw_img(image=just_rect, threshold=140)
     clean_img = remove_noise(bw_img)
-    #cv2.imshow('clean', clean_img)
-
     edges = cv2.Canny(clean_img,1,1)
-    #cv2.imshow('debug', edges)
-    
     no_lava = np.zeros_like(edges)
     im2, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cv2.drawContours(no_lava, contours, -1, (255,255,255), 3)
-
-    line = np.zeros_like(no_lava)
-    line[:, 500:501] = 1
-
+    midline = np.zeros_like(no_lava)
+    mid = int(no_lava.shape[1]/2)
+    midline[:, mid:mid+1] = 1
     touches_line = []
     for contour in contours:
         touches = np.zeros_like(no_lava)
         cv2.drawContours(touches, [contour], -1, (255,255,255), 3)
-        if np.any(touches & line):
+        if np.any(touches & midline):
             touches_line.append(contour)
-
     liners = np.zeros_like(no_lava)
     cv2.drawContours(liners, touches_line, -1, (255,255,255), 3)
-    cv2.imshow('liners', liners)
-    
-    # Fit triangle around edgepoints
+    #cv2.imshow('liners', liners)
+    if not np.any(liners):
+        return False, None
+
+    # Fit triangle around contours
     a, triangle = cv2.minEnclosingTriangle(np.array([np.argwhere(liners.T)]))
     triangles.append(triangle)
     triangle = triangles.average() # smooth it out
     tri = np.zeros_like(no_lava)
     tri = cv2.polylines(test_lined, np.int32([triangle]), True, (0, 255, 0), 3)
-    cv2.imshow('wrecked', tri)
-    return False, None
+    cv2.imshow('wrecked', test_lined)
 
-    rect = cv2.minAreaRect(edgePts)
-    box = cv2.boxPoints(rect)
-    box = np.int0(box)
-    # # convert box points to tuple
-    rect_bot_left=tuple(box[0])
-    rect_top_left=tuple(box[1])
-    rect_top_right=tuple(box[2])
-    rect_bot_right=tuple(box[3])
-
-    # Fit triangle around edgepoints
-    a, triangle = cv2.minEnclosingTriangle(np.array([edgePts]))
-
-    # get proper points of the triangle...
-    tri_t=triangle[0]
-    tri_l=triangle[0]
-    tri_r=triangle[0]
-
-    for i in range(len(triangle)):
-        if triangle[i][0][1] < tri_t[0][1]:
-            tri_t=triangle[i]
-          
-        if triangle[i][0][0] < tri_l[0][0]:
-            tri_l=triangle[i]
-          
-        if triangle[i][0][0] > tri_r[0][0]:
-            tri_r=triangle[i]
-
-    # Convert the points to tuple
-    tri_bot_right=tuple(tri_r[0])
-    tri_top=tuple(tri_t[0])
-    tri_bot_left=tuple(tri_l[0])
-
-    rect_top=line(rect_top_left, rect_top_right)
-    tri_left=line(tri_bot_left, tri_top)
-    tri_right=line(tri_bot_right, tri_top)
-
-    l_intersection=find_intersection(rect_top, tri_left)
-    r_intersection=find_intersection(rect_top, tri_right)
-
+    # find the points of intersection between rectangle & triangle
+    rect_top = line( rect[0], rect[3])
+    triangle_bottom_left = triangle[1]
+    triangle_left = line(triangle[1], triangle[0])
+    triangle_right = line(triangle[2], triangle[0])
+    l_intersection = find_intersection(rect_top, triangle_left)
+    r_intersection = find_intersection(rect_top, triangle_right)
     if not l_intersection or not r_intersection:
         print("No intersections")
         return False, None
 
-    homography_points = np.array([
-        (int(tri_bot_left[0]), int(tri_bot_left[1])),
-        (int(tri_bot_right[0]), int(tri_bot_right[1])),
-        (int(r_intersection[0]), int(r_intersection[1])),
-        (int(l_intersection[0]), int(l_intersection[1]))
-    ])
+    homography_points = np.array([triangle[1], triangle[2], r_intersection, l_intersection], dtype=int)
 
     # Preview
     disp=working_img.copy()
-    cv2.drawContours(disp,[box],0,(255,0,255),2)
-    img = cv2.line(disp, tri_bot_left, tri_top, (255,255,0), 2)
-    img = cv2.line(disp, tri_top, tri_bot_right, (255,255,0), 2)
-    img = cv2.line(disp, tri_bot_right, tri_bot_left, (255,255,0), 2)
     img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
-    # cv2.imshow('edges', edges)
     cv2.imshow('Mapping', disp)
 
     return True, homography_points
