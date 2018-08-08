@@ -1,4 +1,5 @@
 import numpy as np
+from skimage import segmentation, filters, img_as_ubyte
 import cv2
 import imutils
 from imutils.video import FPS, WebcamVideoStream
@@ -63,6 +64,10 @@ def remove_noise(image):
     
     return closed.copy()
 
+
+def hide_surrounding_objects(img):
+    mask = img > filters.threshold_otsu(img)
+    return img_as_ubyte(segmentation.clear_border(mask))
 def find_homograpy_points(img_src):
     #todo: Split this guy out into functions
     wk_img = img_src.copy()
