@@ -115,7 +115,7 @@ def find_homograpy_points(img_src):
     triangle = triangles.average() # smooth it out
     tri = np.zeros_like(no_lava)
     tri = cv2.polylines(test_lined, np.int32([triangle]), True, (0, 255, 0), 3)
-    cv2.imshow('wrecked', test_lined)
+    #cv2.imshow('wrecked', test_lined)
 
     # find the points of intersection between rectangle & triangle
     rect_top = line( rect[0], rect[3])
