@@ -5,12 +5,11 @@ import imutils
 from imutils.video import FPS, WebcamVideoStream
 import redis
 import json
-from lib import sift
+from lib import sift, rects
 
 board_w=480
 borad_h=640
 board_w_mm=484.
-
 
 #Return a line based on two points.
 def line(p1, p2):
@@ -85,32 +84,8 @@ def find_homograpy_points(img_src):
     if not success:
         return False, None
 
-    rects["top"]["left"]["x"] = np.append(rects["top"]["left"]["x"], rect[0][0])
-    rects["top"]["left"]["y"] = np.append(rects["top"]["left"]["y"], rect[0][1])
-    rects["bottom"]["left"]["x"] = np.append(rects["bottom"]["left"]["x"], rect[1][0])
-    rects["bottom"]["left"]["y"] = np.append(rects["bottom"]["left"]["y"], rect[1][1])
-    rects["bottom"]["right"]["x"] = np.append(rects["bottom"]["right"]["x"], rect[2][0])
-    rects["bottom"]["right"]["y"] = np.append(rects["bottom"]["right"]["y"], rect[2][1])
-    rects["top"]["right"]["x"] = np.append(rects["top"]["right"]["x"], rect[3][0])
-    rects["top"]["right"]["y"] = np.append(rects["top"]["right"]["y"], rect[3][1])
-
-    window = 50
-    rects["top"]["left"]["x"] = rects["top"]["left"]["x"][-window:]
-    rects["top"]["left"]["y"] = rects["top"]["left"]["y"][-window:]
-    rects["bottom"]["left"]["x"] = rects["bottom"]["left"]["x"][-window:]
-    rects["bottom"]["left"]["y"] = rects["bottom"]["left"]["y"][-window:]
-    rects["bottom"]["right"]["x"] = rects["bottom"]["right"]["x"][-window:]
-    rects["bottom"]["right"]["y"] = rects["bottom"]["right"]["y"][-window:]
-    rects["top"]["right"]["x"] = rects["top"]["right"]["x"][-window:]
-    rects["top"]["right"]["y"] = rects["top"]["right"]["y"][-window:]
-
-    average = np.array([
-        [np.average(rects["top"]["left"]["x"]), np.average(rects["top"]["left"]["y"])],
-        [np.average(rects["bottom"]["left"]["x"]), np.average(rects["bottom"]["left"]["y"])],
-        [np.average(rects["bottom"]["right"]["x"]), np.average(rects["bottom"]["right"]["y"])],
-        [np.average(rects["top"]["right"]["x"]), np.average(rects["top"]["right"]["y"])]
-    ], dtype=np.int32)
-    test_lined = cv2.polylines(gray.copy(),[average],True,255,3, cv2.LINE_AA)
+    rects.append(rect)
+    test_lined = cv2.polylines(gray.copy(),[rects.average()],True,255,3, cv2.LINE_AA)
     cv2.imshow('rect', test_lined)
     
     just_rect = np.zeros_like(gray)
