@@ -213,7 +213,7 @@ def find_puck(image):
 
         return tuple(np.int0(center)), int(radius)
     else:
-        print 'Puck Not Detected'
+        print('Puck Not Detected')
         return (0,0), 0
 
 def find_bot(image):
@@ -240,7 +240,7 @@ def find_bot(image):
 
         return tuple(np.int0(center)), int(radius)
     else:
-        print 'Bot Not Detected'
+        print('Bot Not Detected')
         return (0,0), 0
 
 def set_puck_state(puck_pos):
@@ -358,7 +358,7 @@ while(True):
             cur_fps = frames
             frames = 0
             start = time.time()
-            print "FPS:", cur_fps
+            print("FPS:", cur_fps)
 
 fps.stop()
 print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
