@@ -6,10 +6,15 @@ from imutils.video import FPS, WebcamVideoStream
 import redis
 import json
 
-
 board_w=480
 borad_h=640
 board_w_mm=484.
+
+train = cv2.imread("./template-2.jpg")
+train_gray = cv2.cvtColor(train, cv2.COLOR_BGR2GRAY)
+
+sift = cv2.xfeatures2d.SIFT_create()
+kpTrain, desTrain = sift.detectAndCompute(train_gray, None)
 
 #Return a line based on two points.
 def line(p1, p2):
@@ -68,10 +73,87 @@ def remove_noise(image):
     
     return closed.copy()
 
+def test(test_gray):
+    kpTest, desTest = sift.detectAndCompute(test_gray, None)
+
+    FLANN_INDEX_KDTREE = 0
+    index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+    search_params = dict(checks = 50)
+    flann = cv2.FlannBasedMatcher(index_params, search_params)
+
+    try:
+        matches = flann.knnMatch(desTrain, desTest,k=2)
+    except:
+        return False, None
+
+    good = []
+    for m,n in matches:
+        if m.distance < 0.7*n.distance:
+            good.append(m)
+
+    MIN_MATCH_COUNT = 3
+    if len(good)>MIN_MATCH_COUNT:
+        src_pts = np.float32([ kpTrain[m.queryIdx].pt for m in good ]).reshape(-1,1,2)
+        dst_pts = np.float32([ kpTest[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
+
+        M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
+        matchesMask = mask.ravel().tolist()
+
+        h,w = train_gray.shape
+        pts = np.float32([ [0,0],[0,h-1],[w-1,h-1],[w-1,0] ]).reshape(-1,1,2)
+        if len(pts) == 0:
+            return np.asarray([])
+        try:
+            dst = cv2.perspectiveTransform(pts,M)
+        except:
+            return False, None
+        ret = np.int32(dst)[:,0,:]
+
+        # at least 0
+        ret[ret < 0] = 0
+        th,tw = test_gray.shape
+        
+        # not to exceed width
+        mask = np.zeros_like(ret)
+        mask[:,0] = 1
+        ret[(ret > tw) & (mask == 1)] = tw
+
+        # not to exceed height
+        mask = np.zeros_like(ret)
+        mask[:,1] = 1
+        ret[(ret > th) & (mask == 1)] = th
+        return True, ret
+    else:
+        print("Not enough matches are found - %d/%d" % (len(good),MIN_MATCH_COUNT))
+        matchesMask = None
+        return False, None
 
 def hide_surrounding_objects(img):
     mask = img > filters.threshold_otsu(img)
     return img_as_ubyte(segmentation.clear_border(mask))
+
+rects = {
+    "top": {
+        "left": {
+            "x": np.array([]),
+            "y": np.array([])
+        },
+        "right": {
+            "x": np.array([]),
+            "y": np.array([])
+        }
+    },
+    "bottom": {
+        "left": {
+            "x": np.array([]),
+            "y": np.array([])
+        },
+        "right": {
+            "x": np.array([]),
+            "y": np.array([])
+        }
+    }
+}
 def find_homograpy_points(img_src):
     #todo: Split this guy out into functions
     wk_img = img_src.copy()
@@ -79,37 +161,54 @@ def find_homograpy_points(img_src):
     gray = cv2.cvtColor(wk_img, cv2.COLOR_BGR2GRAY)
     bw_img = get_bw_img(image=gray, threshold=140)
 
+    # remove everything outside of the board area
+    success, rect = test(gray)
+    if not success:
+        return False, None
+
+    rects["top"]["left"]["x"] = np.append(rects["top"]["left"]["x"], rect[0][0])
+    rects["top"]["left"]["y"] = np.append(rects["top"]["left"]["y"], rect[0][1])
+    rects["bottom"]["left"]["x"] = np.append(rects["bottom"]["left"]["x"], rect[1][0])
+    rects["bottom"]["left"]["y"] = np.append(rects["bottom"]["left"]["y"], rect[1][1])
+    rects["bottom"]["right"]["x"] = np.append(rects["bottom"]["right"]["x"], rect[2][0])
+    rects["bottom"]["right"]["y"] = np.append(rects["bottom"]["right"]["y"], rect[2][1])
+    rects["top"]["right"]["x"] = np.append(rects["top"]["right"]["x"], rect[3][0])
+    rects["top"]["right"]["y"] = np.append(rects["top"]["right"]["y"], rect[3][1])
+
+    window = 50
+    rects["top"]["left"]["x"] = rects["top"]["left"]["x"][-window:]
+    rects["top"]["left"]["y"] = rects["top"]["left"]["y"][-window:]
+    rects["bottom"]["left"]["x"] = rects["bottom"]["left"]["x"][-window:]
+    rects["bottom"]["left"]["y"] = rects["bottom"]["left"]["y"][-window:]
+    rects["bottom"]["right"]["x"] = rects["bottom"]["right"]["x"][-window:]
+    rects["bottom"]["right"]["y"] = rects["bottom"]["right"]["y"][-window:]
+    rects["top"]["right"]["x"] = rects["top"]["right"]["x"][-window:]
+    rects["top"]["right"]["y"] = rects["top"]["right"]["y"][-window:]
+
+    average = np.array([
+        [np.average(rects["top"]["left"]["x"]), np.average(rects["top"]["left"]["y"])],
+        [np.average(rects["bottom"]["left"]["x"]), np.average(rects["bottom"]["left"]["y"])],
+        [np.average(rects["bottom"]["right"]["x"]), np.average(rects["bottom"]["right"]["y"])],
+        [np.average(rects["top"]["right"]["x"]), np.average(rects["top"]["right"]["y"])]
+    ], dtype=np.int32)
+    test_lined = cv2.polylines(gray.copy(),[average],True,255,3, cv2.LINE_AA)
+    cv2.imshow('rect', test_lined)
+    
+    just_rect = np.zeros_like(gray)
+    just_rect[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = gray[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
+
+    bw_img = get_bw_img(image=just_rect, threshold=140)
     clean_img = remove_noise(bw_img)
+    #cv2.imshow('clean', clean_img)
 
-    zero_count=np.count_nonzero(clean_img)
-    #print "Zero-Count:", zero_count
-
-    no_lava_pass_1 = np.zeros_like(clean_img)
-    kernel = np.ones((5,5),np.uint8)
-    dilation = cv2.dilate(clean_img, kernel, iterations = 3)
-    im2, contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    off_edge = [contour for contour in contours if np.count_nonzero(contour) == contour.shape[0] * contour.shape[1] * contour.shape[2]]
-    cv2.drawContours(no_lava_pass_1, off_edge, -1, (255,255,255), cv2.FILLED)
-
-    no_lava_pass_2 = np.zeros_like(no_lava_pass_1)
-    flipped = cv2.flip(no_lava_pass_1, 0)
-    kernel = np.ones((5,5),np.uint8)
-    dilation = cv2.dilate(flipped, kernel, iterations = 5)
-    im2, contours, hierarchy = cv2.findContours(dilation, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    off_edge2 = [contour for contour in contours if np.count_nonzero(contour) == contour.shape[0] * contour.shape[1] * contour.shape[2]]
-    big_contour = max(contours, key = cv2.contourArea)
-    cv2.drawContours(no_lava_pass_2, [big_contour], -1, (255,255,255), 3)
-    edges = cv2.flip(no_lava_pass_2, 0)
-
-    #edges = cv2.Canny(no_lava,1,1)
-    #cv2.imshow('debug', edges)
+    edges = cv2.Canny(clean_img,1,1)
+    cv2.imshow('debug', edges)
 
     edgePts=np.argwhere(edges)
 
     rect = cv2.minAreaRect(edgePts)
     box = cv2.boxPoints(rect)
     box = np.int0(box)
-
     # # convert box points to tuple
     rect_bot_left=tuple(box[0])
     rect_top_left=tuple(box[1])
