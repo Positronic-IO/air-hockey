@@ -292,67 +292,68 @@ while(True):
 
     img = imutils.resize(vs.read(), width=1024)
     if img is not None:
-        #cv2.imshow("Orig", img)
-        try:     
-            working_img = img.copy()
+        cv2.imshow("raw", img)
 
-            h_points = np.asarray([])
-            if frameCt < 100:
-                h_points = find_homograpy_points(working_img)
+        working_img = img.copy()
 
-            if frameCt % 1000 == 0:
-                h_points = find_homograpy_points(working_img)
+        h_points = np.asarray([])
+        if frameCt < 50:
+            success, h_points = find_homograpy_points(working_img)
 
-            if not cur_h_points.any():
+        if frameCt % 1000 == 0:
+            success, h_points = find_homograpy_points(working_img)
+        if not success:
+            continue
+
+        if not cur_h_points.any():
+            cur_h_points = h_points
+        elif h_points.any():
+            if not np.max(h_points - cur_h_points) < 50:
                 cur_h_points = h_points
-            elif h_points.any():
-                if not np.max(h_points - cur_h_points) < 50:
-                    cur_h_points = h_points
-                else:
-                    counter += 1
-                    if counter > 100:
-                        counter = 0
-                        #cur_h_points = h_points
-                        cur_h_points = np.mean( np.array([ cur_h_points, h_points ]), axis=0, dtype=np.int32)
+            else:
+                counter += 1
+                if counter > 100:
+                    counter = 0
+                    cur_h_points = np.mean( np.array([ cur_h_points, h_points ]), axis=0, dtype=np.int32)
 
-            h_img = get_homographic_image(working_img, cur_h_points)            
+        h_img = get_homographic_image(working_img, cur_h_points)            
 
+        new_puck_center, new_puck_radius = find_puck(h_img)
+        if puck_radius == -1 or ( new_puck_radius < puck_radius * 1.5 and new_puck_radius > puck_radius * 0.5):
+            puck_radius = new_puck_radius
+            puck_center = new_puck_center
 
-            puck_center, puck_radius = find_puck(h_img)
-            bot_center, bot_radius = find_bot(h_img)
+        new_bot_center, new_bot_radius = find_bot(h_img)
+        if bot_radius == -1 or ( new_bot_radius < bot_radius * 1.5 and new_bot_radius > bot_radius * 0.5):
+            bot_radius = new_bot_radius
+            bot_center = new_bot_center
 
-            #print "Puck Center:", puck_center
-            #print "Bot Center:", bot_center
+        set_puck_state(puck_center)
+        set_bot_state(bot_center)
 
-            set_puck_state(puck_center)
-            set_bot_state(bot_center)
+        ###### Display Preview
+        disp_img = h_img.copy()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        ftext='Frame: ' + str(frameCt)
+        cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
 
-            ###### Display Preview
-            disp_img = h_img.copy()
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            ftext='Frame: ' + str(frameCt)
-            cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
+        fps_text='FPS: ' + str(cur_fps)
+        cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
 
-            fps_text='FPS: ' + str(cur_fps)
-            cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+        puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
+        cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
-            cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+        bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
+        cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
 
-            bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
-            cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+        img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
+        img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
 
-            img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
-            img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
+        cv2.imshow("Preview", disp_img)
 
-            cv2.imshow("Preview", disp_img)
-
-            fps.update()
-            frames += 1
-            frameCt += 1
-        except Exception as ex:
-            print ex
-            pass
+        fps.update()
+        frames += 1
+        frameCt += 1
         
         if time.time() - start > 1:
             cur_fps = frames
