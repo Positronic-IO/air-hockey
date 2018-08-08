@@ -128,13 +128,15 @@ def find_homograpy_points(img_src):
         print("No intersections")
         return False, None
 
-    homography_points = np.array([triangle[1], triangle[2], r_intersection, l_intersection], dtype=int)
 
     # Preview
     disp=working_img.copy()
     img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
     cv2.imshow('Mapping', disp)
 
+    bl = rect[1] / 2 + triangle[1] / 2
+    br = rect[2] / 2 + triangle[2] / 2
+    homography_points = np.array([bl, br, r_intersection, l_intersection], dtype=int)
     return True, homography_points
         
 def get_homographic_image(image, homography_points):
