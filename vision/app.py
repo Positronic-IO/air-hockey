@@ -287,6 +287,9 @@ r=redis.StrictRedis(host='localhost',port=6379,db=0)
 set_board_state()
 
 while(True):
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
     img = imutils.resize(vs.read(), width=1024)
     if img is not None:
         #cv2.imshow("Orig", img)
@@ -356,9 +359,6 @@ while(True):
             frames = 0
             start = time.time()
             print "FPS:", cur_fps
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 
 fps.stop()
 print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
