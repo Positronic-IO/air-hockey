@@ -45,7 +45,8 @@ def remove_noise(image):
     # Baseline params
     kernel1=5
     kernel2=60
-    while True:    
+    max_iters = 10
+    while True:
         kernel = np.ones((kernel1,kernel2))
         opened=cv2.morphologyEx(wk_img,cv2.MORPH_OPEN, kernel)    
 
@@ -56,6 +57,9 @@ def remove_noise(image):
             kernel2+=1
         else:
             #print "Kernel:",(kernel1,kernel2)
+            break
+        max_iters -= 1
+        if max_iters == 0:
             break
 
     # this cleans up the noise on the inside and reduces the number of
