@@ -128,12 +128,6 @@ def find_homograpy_points(img_src):
         print("No intersections")
         return False, None
 
-
-    # Preview
-    disp=working_img.copy()
-    img = cv2.polylines(disp, [homography_points], True, (255, 0, 0), 2)
-    cv2.imshow('Mapping', disp)
-
     bl = rect[1] / 2 + triangle[1] / 2
     br = rect[2] / 2 + triangle[2] / 2
     homography_points = np.array([bl, br, r_intersection, l_intersection], dtype=int)
@@ -266,11 +260,11 @@ while(True):
         break
 
     img = imutils.resize(vs.read(), width=1024)
+    #cv2.imshow("raw", img)
     if img is not None:
         frames += 1
         frameCt += 1
 
-        cv2.imshow("raw", img)
 
         working_img = img.copy()
 
@@ -293,8 +287,11 @@ while(True):
                 if counter > 100:
                     counter = 0
                     cur_h_points = np.mean( np.array([ cur_h_points, h_points ]), axis=0, dtype=np.int32)
+        disp = img.copy()
+        cv2.polylines(disp, [cur_h_points], True, (255, 0, 0), 2)
+        cv2.imshow('preview', disp)
 
-        h_img = get_homographic_image(working_img, cur_h_points)            
+        h_img = get_homographic_image(img, cur_h_points)            
 
         new_puck_center, new_puck_radius = find_puck(h_img)
         if puck_radius == -1 or ( new_puck_radius < puck_radius * 1.5 and new_puck_radius > puck_radius * 0.5):
