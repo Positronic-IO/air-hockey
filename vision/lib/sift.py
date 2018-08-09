@@ -4,11 +4,11 @@ import cv2
 train = cv2.imread("./template-2.jpg")
 train_gray = cv2.cvtColor(train, cv2.COLOR_BGR2GRAY)
 
-sift = cv2.xfeatures2d.SIFT_create()
-kpTrain, desTrain = sift.detectAndCompute(train_gray, None)
+detector = cv2.xfeatures2d.SURF_create()
+kpTrain, desTrain = detector.detectAndCompute(train_gray, None)
 
 def test(test_gray):
-    kpTest, desTest = sift.detectAndCompute(test_gray, None)
+    kpTest, desTest = detector.detectAndCompute(test_gray, None)
 
     FLANN_INDEX_KDTREE = 0
     index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)

@@ -44,7 +44,7 @@ def remove_noise(image):
     
     # Baseline params
     kernel1=5
-    kernel2=60
+    kernel2=30
     max_iters = 10
     while True:
         kernel = np.ones((kernel1,kernel2))
@@ -82,10 +82,11 @@ def find_homograpy_points(img_src):
         return False, None
     rects.append(rect)
     rect = rects.average() # smooth it out
+    return True, rect
+
     test_lined = cv2.polylines(wk_img.copy(),[rect],True,(255, 0, 0), 3, cv2.LINE_AA)    
     just_rect = np.zeros_like(gray)
     just_rect[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = gray[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
-    #cv2.imshow('rect', test_lined)
 
     # find contours that intersect the midline
     bw_img = get_bw_img(image=just_rect, threshold=140)
@@ -105,7 +106,7 @@ def find_homograpy_points(img_src):
             touches_line.append(contour)
     liners = np.zeros_like(no_lava)
     cv2.drawContours(liners, touches_line, -1, (255,255,255), 3)
-    #cv2.imshow('liners', liners)
+    cv2.drawContours(test_lined, touches_line, -1, (255,255,255), 3)
     if not np.any(liners):
         return False, None
 
@@ -115,7 +116,7 @@ def find_homograpy_points(img_src):
     triangle = triangles.average() # smooth it out
     tri = np.zeros_like(no_lava)
     tri = cv2.polylines(test_lined, np.int32([triangle]), True, (0, 255, 0), 3)
-    #cv2.imshow('wrecked', test_lined)
+    cv2.imshow('wrecked', test_lined)
 
     # find the points of intersection between rectangle & triangle
     rect_top = line( rect[0], rect[3])
@@ -158,52 +159,44 @@ def get_homographic_image(image, homography_points):
 
     return warped.copy()
 
-def find_puck(image):
-    wk_img = image.copy()
+def find_puck(img):
 
-    # conver to rgb, puck stands out better.
-    rgb = cv2.cvtColor(wk_img, cv2.COLOR_BGR2RGB)
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    pucklowerBound = np.array([0,0,130])
+    puckupperBound = np.array([50,100,160])
 
-    pucklowerBound=np.array([0,0,110])
-    puckupperBound=np.array([75,255,200])
+    mask = cv2.inRange(rgb, pucklowerBound, puckupperBound)
+    el = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    closed = cv2.dilate(mask, el, iterations=3)
 
-    mask=cv2.inRange(rgb,pucklowerBound,puckupperBound)
-    opened=cv2.morphologyEx(mask,cv2.MORPH_OPEN, np.ones((1,3)))
-    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((20,20)))
-
-    #previews
-    pts = np.argwhere(closed)
-    if len(pts) > 0:
-        center, radius = cv2.minEnclosingCircle(pts)
-
-        return tuple(np.int0(center)), int(radius)
-    else:
-        print('Puck Not Detected')
-        return (0,0), 0
+    _, contours,hierarchy = cv2.findContours(closed, 2, 1)
+    contour_list = []
+    for contour in contours:
+        approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+        area = cv2.contourArea(contour)
+        if ((len(approx) > 8) & (area > 30) ):
+            contour_list.append(contour)
+    if not contour_list:
+        return (0, 0), 0
+    c = max(contour_list, key = cv2.contourArea)
+    center, radius = cv2.minEnclosingCircle(c)
+    return tuple(np.int0(center)), int(radius)
 
 def find_bot(image):
-    wk_img = image.copy()
-
-    hsv = cv2.cvtColor(wk_img, cv2.COLOR_RGB2HSV)
-    # Don't care about top part of the board...
-    hsv[0:200,:,:] = 0 
-
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+    hsv[0:120,:,:] = 0 
     botlowerBound=np.array([120,150,100])
     botupperBound=np.array([130,255,150])
 
-    mask=cv2.inRange(hsv,botlowerBound,botupperBound)
+    mask = cv2.inRange(hsv, botlowerBound, botupperBound)
+    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((10,5)))
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((50,50)))
 
-    opened=cv2.morphologyEx(mask,cv2.MORPH_OPEN, np.ones((10,5)))
-    closed=cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((50,50)))
-
-    #previews
     pts = np.argwhere(closed)
     if (len(pts) > 0):
         center, radius = cv2.minEnclosingCircle(pts)
-
         return tuple(np.int0(center)), int(radius)
     else:
-        print('Bot Not Detected')
         return (0,0), 0
 
 def set_puck_state(puck_pos):
@@ -260,62 +253,71 @@ while(True):
         break
 
     img = imutils.resize(vs.read(), width=1024)
-    #cv2.imshow("raw", img)
-    if img is not None:
-        frames += 1
-        frameCt += 1
+    if img is None:
+        continue
 
-        if frameCt < 10 or frameCt % 50 == 0:
-            success, cur_h_points = find_homograpy_points(img)
-        if not success:
-            continue
+    frames += 1
+    frameCt += 1
 
-        disp = img.copy()
-        cv2.polylines(disp, [cur_h_points], True, (255, 0, 0), 2)
-        cv2.imshow('preview', disp)
+    if frameCt < 25 or frameCt % 500 == 0:
+        success, rect = find_homograpy_points(img)
+    if not success:
+        continue
 
-        h_img = get_homographic_image(img, cur_h_points)            
+    # cv2.polylines(disp, [cur_h_points], True, (255, 0, 0), 2)
+    #cv2.imshow('preview', disp)
 
-        new_puck_center, new_puck_radius = find_puck(h_img)
-        if puck_radius == -1 or ( new_puck_radius < puck_radius * 1.5 and new_puck_radius > puck_radius * 0.5):
-            puck_radius = new_puck_radius
-            puck_center = new_puck_center
+    #h_img = get_homographic_image(oper.copy(), cur_h_points)            
+    
+    board = np.zeros_like(img)
+    board[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = img[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
 
-        new_bot_center, new_bot_radius = find_bot(h_img)
-        if bot_radius == -1 or ( new_bot_radius < bot_radius * 1.5 and new_bot_radius > bot_radius * 0.5):
-            bot_radius = new_bot_radius
-            bot_center = new_bot_center
+    new_puck_center, new_puck_radius = find_puck(board)
+    if new_puck_radius != 0:# and (puck_radius == -1 or ( new_puck_radius < puck_radius * 1.5 and new_puck_radius > puck_radius * 0.5)):
+        puck_radius = new_puck_radius
+        puck_center = new_puck_center
 
-        set_puck_state(puck_center)
-        set_bot_state(bot_center)
+    new_bot_center, new_bot_radius = find_bot(board)
+    if new_bot_radius != 0 and (bot_radius == -1 or ( new_bot_radius < bot_radius * 1.5 and new_bot_radius > bot_radius * 0.5)):
+        bot_radius = new_bot_radius
+        bot_center = new_bot_center
 
-        ###### Display Preview
-        disp_img = h_img.copy()
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        ftext='Frame: ' + str(frameCt)
-        cv2.putText(disp_img,ftext,(10,50), font, 0.5,(255,0,255),2,cv2.LINE_AA)
+    set_puck_state(puck_center)
+    set_bot_state(bot_center)
 
-        fps_text='FPS: ' + str(cur_fps)
-        cv2.putText(disp_img,fps_text,(10,80), font, 0.5,(0,255,0),2,cv2.LINE_AA)
+    ###### Display Preview
+    #disp_img = img.copy()
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    ftext='Frame: ' + str(frameCt)
+    cv2.putText(img,ftext,(10,50), font, 0.5,(255,0,255),1,cv2.LINE_AA)
 
-        puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1])
-        cv2.putText(disp_img,puck_text,(10,150), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+    fps_text='FPS: ' + str(cur_fps)
+    cv2.putText(img,fps_text,(10,80), font, 0.5,(0,255,0),1,cv2.LINE_AA)
 
+    if puck_radius != -1:
+        puck_text='Puck: ' + str(puck_center[0]) + ', ' + str(puck_center[1]) + ', ' + str(puck_radius)
+        cv2.circle(img, puck_center, puck_radius, (0,255,0), 2)
+    else:
+        puck_text='Puck: NOT FOUND'
+    cv2.putText(img,puck_text,(10,150), font, 0.5,(255,255,0),1,cv2.LINE_AA)
+
+    if bot_radius != -1:
         bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
-        cv2.putText(disp_img,bot_text,(10,170), font, 0.5,(255,255,0),2,cv2.LINE_AA)
+        cv2.circle(img, tuple([bot_center[1], bot_center[0]]), bot_radius, (255,0,255), 2)
+    else:
+        bot_text='Bot: NOT FOUND'
+    cv2.putText(img, bot_text, (10,170), font, 0.5,(255,255,0), 1, cv2.LINE_AA)
 
-        img = cv2.circle(disp_img, puck_center, puck_radius, (0,255,0), 2)
-        img = cv2.circle(disp_img, bot_center, bot_radius, (255,0,255), 2)
+    cv2.polylines(img, [rect], True, (255, 0, 0), 1, cv2.LINE_AA)    
 
-        cv2.imshow("Preview", disp_img)
+    cv2.imshow("Preview", img)
 
-        fps.update()
-        
-        if time.time() - start > 1:
-            cur_fps = frames
-            frames = 0
-            start = time.time()
-            print("FPS:", cur_fps)
+    fps.update()
+    
+    if time.time() - start > 1:
+        cur_fps = frames
+        frames = 0
+        start = time.time()
 
 fps.stop()
 print("[INFO] elasped time: {:.2f}".format(fps.elapsed()))
