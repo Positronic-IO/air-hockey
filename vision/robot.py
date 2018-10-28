@@ -35,7 +35,7 @@ class Robot:
         self.target_y_low  = chr( y & 0xff)
         self.target_y_high = chr((y & 0xff00) >> 8)
         payload = self.mode + self.target_x_high + self.target_x_low + self.target_y_high + self.target_y_low + self.speed_high + self.speed_low + self.accel_high + self.accel_low + self.current_pos_x_high + self.current_pos_x_low + self.current_pos_y_high + self.current_pos_y_low
-        self.sock.sendto(payload, (self.ipaddress, self.port))
+        self.sock.sendto(payload.encode(), (self.ipaddress, self.port))
         if wait:
             old_x = ord(self.current_pos_x_high) * 255 + ord(self.current_pos_x_low)
             old_y = ord(self.current_pos_y_high) * 255 + ord(self.current_pos_y_low)

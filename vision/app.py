@@ -160,7 +160,6 @@ def get_homographic_image(image, homography_points):
     return warped.copy()
 
 def find_puck(img):
-
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     pucklowerBound = np.array([0,0,130])
     puckupperBound = np.array([50,100,160])
@@ -183,21 +182,28 @@ def find_puck(img):
     return tuple(np.int0(center)), int(radius)
 
 def find_bot(image):
-    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-    hsv[0:120,:,:] = 0 
-    botlowerBound=np.array([120,150,100])
-    botupperBound=np.array([130,255,150])
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    hsv[0:200,:,:] = 0 
+    lowerBound = np.array([0,150,100])
+    upperBound = np.array([200,255,150])
 
-    mask = cv2.inRange(hsv, botlowerBound, botupperBound)
-    opened = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((10,5)))
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((50,50)))
+    mask = cv2.inRange(hsv, lowerBound, upperBound)
+    el = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    closed = cv2.dilate(mask, el, iterations=3)
 
-    pts = np.argwhere(closed)
-    if (len(pts) > 0):
-        center, radius = cv2.minEnclosingCircle(pts)
-        return tuple(np.int0(center)), int(radius)
-    else:
-        return (0,0), 0
+    _, contours,hierarchy = cv2.findContours(closed, 2, 1)
+    contour_list = []
+    for contour in contours:
+        approx = cv2.approxPolyDP(contour,0.01*cv2.arcLength(contour,True),True)
+        area = cv2.contourArea(contour)
+        if ((len(approx) > 8) & (area > 30) ):
+            contour_list.append(contour)
+    if not contour_list:
+        return (0, 0), 0
+    c = max(contour_list, key = cv2.contourArea)
+    center, radius = cv2.minEnclosingCircle(c)
+    return tuple(np.int0(center)), int(radius)
+
 
 def set_puck_state(puck_pos):
     # make dictionary to be serialized to json
@@ -273,17 +279,16 @@ while(True):
     board[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])] = img[min(rect[:,1]):max(rect[:,1]), min(rect[:,0]):max(rect[:,0])]
 
     new_puck_center, new_puck_radius = find_puck(board)
-    if new_puck_radius != 0:# and (puck_radius == -1 or ( new_puck_radius < puck_radius * 1.5 and new_puck_radius > puck_radius * 0.5)):
-        puck_radius = new_puck_radius
+    if new_puck_radius != 0:
         puck_center = new_puck_center
+        puck_radius = new_puck_radius
+        set_puck_state(puck_center)
 
     new_bot_center, new_bot_radius = find_bot(board)
-    if new_bot_radius != 0 and (bot_radius == -1 or ( new_bot_radius < bot_radius * 1.5 and new_bot_radius > bot_radius * 0.5)):
-        bot_radius = new_bot_radius
+    if new_bot_radius != 0:
         bot_center = new_bot_center
-
-    set_puck_state(puck_center)
-    set_bot_state(bot_center)
+        bot_radius = new_bot_radius
+        set_bot_state(bot_center)
 
     ###### Display Preview
     #disp_img = img.copy()
@@ -303,7 +308,7 @@ while(True):
 
     if bot_radius != -1:
         bot_text='Bot: ' + str(bot_center[0]) + ', ' + str(bot_center[1])
-        cv2.circle(img, tuple([bot_center[1], bot_center[0]]), bot_radius, (255,0,255), 2)
+        cv2.circle(img, bot_center, bot_radius, (255,0,255), 2)
     else:
         bot_text='Bot: NOT FOUND'
     cv2.putText(img, bot_text, (10,170), font, 0.5,(255,255,0), 1, cv2.LINE_AA)

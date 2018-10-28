@@ -6,9 +6,9 @@ import math
 from vision import robot
 
 #sleep_time = 0.015
-sleep_time = 0.015
-fast = 100
-slow = 50
+sleep_time = 0.1
+fast = 10
+slow = 5
 
 fluffy = robot.Robot()
 fluffy.speed_low = chr(255)
@@ -23,12 +23,12 @@ min_y = 450
 
 def meet_the_puck(puck_state, bot_state):
     speed = fast
-    p = json.loads(puck_state)
-    b = json.loads(bot_state)
+    puck = json.loads(puck_state)
+    bot = json.loads(bot_state)
 
     #find horiz and vertical distances between puck and bot
-    dx = float(b['x']) - float(p['x'])
-    dy = float(b['y']) - float(p['y'])
+    dx = float(bot['x']) - float(puck['x'])
+    dy = float(bot['y']) - float(puck['y'])
     
     # todo: 
     #   if puck is behind bot, do not go towards puck, go around.
@@ -36,26 +36,27 @@ def meet_the_puck(puck_state, bot_state):
     
     #get the hypotenuse
     d = math.hypot(dx, dy)
-    
-    if d > 100:
-        speed = slow
+    #print("d=",d)
+    #if d > 100:
+    #    speed = slow
     
     if abs(d) > 30:
         # calculate the change to the position
         cx = min(speed * dx/d, dx)
         cy = min(speed * dy/d, dy)
         
-        new_b = b
-        new_b['x'] -= int(cx)
-        new_b['y'] -= int(cy)
+        new_b = bot
+        new_b['x'] = int(puck['x'])
+        new_b['y'] = int(puck['y'])
         
-        if new_b['y'] < min_y:
-            new_b['y'] = int(min_y)
+        #if new_b['y'] < min_y:
+        #    new_b['y'] = int(min_y)
 
+        print(new_b, d)
         fluffy.goto(new_b['x'], new_b['y'])
 
-        r.set("machine-state-bot", json.dumps(new_b))
-        r.publish('state-changed', True)
+        #r.set("machine-state-bot", json.dumps(new_b))
+        #r.publish('state-changed', True)
 
 p.subscribe('state-changed')
 
