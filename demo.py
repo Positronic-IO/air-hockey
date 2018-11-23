@@ -13,8 +13,7 @@ import imutils
 from imutils.video import FPS, WebcamVideoStream
 
 def annotate(img):
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
+    
     ## isolate HUE
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     hsv[:,:,1:] = 0
@@ -22,17 +21,15 @@ def annotate(img):
     hue = ~hue[:,:,0]
 
     ## denoise
-    kernel = np.ones((5, 50))
+    kernel = np.ones((1, 1))
     opened = cv2.morphologyEx(hue, cv2.MORPH_OPEN, kernel)
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((10,10)))
+    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((1,5)))
 
     ## edges are less work
     laplacian = cv2.Laplacian(closed,cv2.CV_8UC1)
 
     ## find largest external blob
     im2, outer_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    if len(outer_contours) == 0:
-        return rgb
     max_contour = max(outer_contours, key = cv2.contourArea)
 
     ## translate playing area to a clean rect
@@ -43,25 +40,35 @@ def annotate(img):
     im2, all_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     ## isolate the shapes inside the table area
-    def point_in_box(point, box):
-        retval = point[0] > min(box[:,0]) and point[0] < max(box[:,0]) and point[1] > min(box[:,1]) and point[1] < max(box[:,1])
-        return retval
-
-    contours_in_box = [c for c in all_contours if np.all(point_in_box(c[0,0,:], box))]
+    contours_in_box = [c for c in all_contours if not (min(c[:,0,0]) <= min(box[:,0]) or max(c[:,0,0]) >= max(box[:,0]) or min(c[:,0,1]) <= min(box[:,1]) or max(c[:,0,1]) >= max(box[:,1]))]
 
     ## filter out large shapes
     def get_area(c):
         m = cv2.moments(c)
         return m['m00']
     max_area = get_area(max_contour)
-    small_contours = [c for c in contours_in_box if (get_area(c) / max_area) < 0.5]
+    small_contours = [c for c in contours_in_box if (get_area(c) * 100 / max_area) < 50 and (get_area(c) * 100 / max_area) > 0.1]
 
     ## filter out non-circular shapes
-    circular_contours = [c for c in small_contours if len(cv2.approxPolyDP(c,0.01*cv2.arcLength(c,True),True)) < 15]
+    def is_circle(c):
+        polys = len(cv2.approxPolyDP(c,0.01*cv2.arcLength(c,True),True))
+        if polys < 8 or polys > 15:
+            return False
+
+        area = get_area(c)
+        center, radius = cv2.minEnclosingCircle(c)
+        circle_area = 3.14*radius*radius
+        if abs(area-circle_area) > .75 * area:
+            return False
+
+        return True
+
+    circular_contours = [c for c in small_contours if is_circle(c)]
 
     ## put it all together
-    cv2.drawContours(rgb, [box], 0, (255, 0, 0), 3)
-    cv2.drawContours(rgb, circular_contours, -1, (0,255,0), 5)
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    cv2.drawContours(rgb, [box], 0, (255, 0, 0), 2)
+    cv2.drawContours(rgb, circular_contours, -1, (0,255,0), 2)
     return rgb
 
 def main():
@@ -75,7 +82,8 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        img = imutils.resize(vs.read(), width=1024)
+        img = vs.read()
+        #img = imutils.resize(img, width=1024)
         annotated = annotate(img)
         cv2.imshow("test", annotated)
 
