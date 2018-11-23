@@ -13,16 +13,22 @@ import imutils
 from imutils.video import FPS, WebcamVideoStream
 
 def annotate(img):
-    
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
     ## isolate HUE
     hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
     hsv[:,:,1:] = 0
     t, hue = cv2.threshold(hsv, 50, 255, cv2.THRESH_BINARY)
     hue = ~hue[:,:,0]
 
+    ## mask out black
+    t, blue = cv2.threshold(rgb, 20, 255, cv2.THRESH_BINARY_INV, cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+    mask = ~blue[:,:,2]
+    masked = mask & hue
+    
     ## denoise
     kernel = np.ones((1, 1))
-    opened = cv2.morphologyEx(hue, cv2.MORPH_OPEN, kernel)
+    opened = cv2.morphologyEx(masked, cv2.MORPH_OPEN, kernel)
     closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((1,5)))
 
     ## edges are less work
@@ -55,8 +61,8 @@ def annotate(img):
         if polys < 8 or polys > 15:
             return False
 
-        area = get_area(c)
         center, radius = cv2.minEnclosingCircle(c)
+        area = get_area(c)
         circle_area = 3.14*radius*radius
         if abs(area-circle_area) > .75 * area:
             return False
@@ -66,11 +72,10 @@ def annotate(img):
     circular_contours = [c for c in small_contours if is_circle(c)]
 
     ## put it all together
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     cv2.drawContours(rgb, [box], 0, (255, 0, 0), 2)
     cv2.drawContours(rgb, circular_contours, -1, (0,255,0), 2)
     return rgb
-
+    
 def main():
     vs = WebcamVideoStream(src=0)
     vs = vs.start()
