@@ -81,7 +81,10 @@ def annotate(img):
 
     ## put it all together
     cv2.drawContours(img, [table], 0, (255, 0, 0), 2)
-    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
+    for c in circular_contours:
+        center, radius = cv2.minEnclosingCircle(c)
+        cv2.circle(img, (int(center[0]), int(center[1])), int(radius), (0,255,0), 2)
+#    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
     return img
     
 def main():
