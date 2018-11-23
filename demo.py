@@ -11,6 +11,9 @@ from matplotlib import colors
 import cv2
 import imutils
 from imutils.video import FPS, WebcamVideoStream
+from imutils import perspective
+
+boxes = []
 
 def annotate(img):
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -40,13 +43,18 @@ def annotate(img):
 
     ## translate playing area to a clean rect
     rect = cv2.minAreaRect(max_contour)
-    box = np.int0(cv2.boxPoints(rect))
+    box = cv2.boxPoints(rect)
+    ordered = perspective.order_points(box)
+    boxes.append(ordered)
+    if len(boxes) > 50:
+        boxes.pop(0)
+    table = np.int0(np.mean(boxes, axis=0))
 
     ## get all of the shapes
     im2, all_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
     ## isolate the shapes inside the table area
-    contours_in_box = [c for c in all_contours if not (min(c[:,0,0]) <= min(box[:,0]) or max(c[:,0,0]) >= max(box[:,0]) or min(c[:,0,1]) <= min(box[:,1]) or max(c[:,0,1]) >= max(box[:,1]))]
+    contours_in_box = [c for c in all_contours if not (min(c[:,0,0]) <= min(table[:,0]) or max(c[:,0,0]) >= max(table[:,0]) or min(c[:,0,1]) <= min(table[:,1]) or max(c[:,0,1]) >= max(table[:,1]))]
 
     ## filter out large shapes
     def get_area(c):
@@ -64,7 +72,7 @@ def annotate(img):
         center, radius = cv2.minEnclosingCircle(c)
         area = get_area(c)
         circle_area = 3.14*radius*radius
-        if abs(area-circle_area) > .75 * area:
+        if abs(area-circle_area) > .5 * area:
             return False
 
         return True
@@ -72,9 +80,9 @@ def annotate(img):
     circular_contours = [c for c in small_contours if is_circle(c)]
 
     ## put it all together
-    cv2.drawContours(rgb, [box], 0, (255, 0, 0), 2)
-    cv2.drawContours(rgb, circular_contours, -1, (0,255,0), 2)
-    return rgb
+    cv2.drawContours(img, [table], 0, (255, 0, 0), 2)
+    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
+    return img
     
 def main():
     vs = WebcamVideoStream(src=0)
