@@ -13,6 +13,8 @@ import imutils
 from imutils.video import FPS, WebcamVideoStream
 from imutils import perspective
 
+from timeit import default_timer as timer
+
 boxes = []
 
 def annotate(img):
@@ -78,7 +80,7 @@ def annotate(img):
         return True
 
     circular_contours = [c for c in small_contours if is_circle(c)]
-
+        
     ## put it all together
     cv2.drawContours(img, [table], 0, (255, 0, 0), 2)
     for c in circular_contours:
@@ -87,7 +89,9 @@ def annotate(img):
 #    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
     return img
     
+fps_buffer = []
 def main():
+    last = timer()
     vs = WebcamVideoStream(src=0)
     vs = vs.start()
 
@@ -98,9 +102,18 @@ def main():
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
+        now = timer()
+        diff = now - last
+        last = now
+        fps = 1 / diff
+        fps_buffer.append(fps)
+        if len(fps_buffer) > 10:
+            fps_buffer.pop(0)
+
         img = vs.read()
         #img = imutils.resize(img, width=1024)
         annotated = annotate(img)
+        cv2.putText(annotated, str(int(np.mean(fps_buffer))), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (255,0, 0), 2)
         cv2.imshow("test", annotated)
 
     cv2.destroyAllWindows()
