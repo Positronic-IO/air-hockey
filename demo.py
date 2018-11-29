@@ -1,6 +1,12 @@
-import numpy as np
-import cv2
+# import the necessary packages
+from __future__ import print_function
+from imutils.video import WebcamVideoStream
+from imutils.video import FPS
 import imutils
+import cv2
+from timeit import default_timer as timer
+import numpy as np
+
 import skimage
 
 import matplotlib.pyplot as plt
@@ -8,15 +14,48 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import cm
 from matplotlib import colors
 
-import cv2
-import imutils
 from imutils.video import FPS, WebcamVideoStream
 from imutils import perspective
 
-from timeit import default_timer as timer
+# import the necessary packages
+import datetime
+
+class piece:
+    def __init__(self, circle):
+        self.speed = 0
+        self.retries = 0
+        self.direction = 0
+        self.update(circle)
+
+    def update(self, circle):
+        self.center = (int(circle[0][0]), int(circle[0][1]))
+        self.radius = int(circle[1])
+    
+    def dist(self, circle):
+        return np.sum(abs(np.asarray(self.center) - np.asarray(circle[0])))
+
+    def draw(self, out):
+        cv2.circle(out, self.center, self.radius, (0,255,0), 2)
+
+class cheap_fps:
+	def __init__(self):
+		# store the start time, end time, and total number of frames
+		# that were examined between the start and end intervals
+		self.fps_buffer = []
+		self.last = timer()
+
+	def update(self):
+		now = timer()
+		diff = now - self.last
+		self.last = now
+		fps = 1 / diff
+		self.fps_buffer.append(fps)
+		if len(self.fps_buffer) > 10:
+			self.fps_buffer.pop(0)
+		return str(int(np.mean(self.fps_buffer)))
 
 boxes = []
-
+pieces = []
 def annotate(img):
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
@@ -80,43 +119,89 @@ def annotate(img):
         return True
 
     circular_contours = [c for c in small_contours if is_circle(c)]
-        
+    
+    out = np.zeros_like(img)
+#    out = img
+
     ## put it all together
-    cv2.drawContours(img, [table], 0, (255, 0, 0), 2)
+    #cv2.drawContours(out, [table], 0, (255, 0, 0), 2) # draw table
+    circles = []
     for c in circular_contours:
         center, radius = cv2.minEnclosingCircle(c)
-        cv2.circle(img, (int(center[0]), int(center[1])), int(radius), (0,255,0), 2)
+        if radius < 20 and radius > 10:
+            circles.append( (center, radius) )
+
+    if len(circles) < len(pieces):
+        # remove from pieces
+        extras = list(pieces)
+        for circle in circles:
+            diff = [ extra.dist(circle) for extra in extras ]
+            index = diff.index(np.min(diff))
+            pieces[pieces.index(extras[index])].retries = 0
+            extras.pop(index)
+        for extra in extras:
+            extra.retries += 1
+            if extra.retries > 2:
+                pieces.pop(pieces.index(extra))
+
+    if len(circles) > len(pieces):
+        # add to pieces
+        for item in pieces:
+            diff = [ item.dist(circle) for circle in circles ]
+            index = diff.index(np.min(diff))
+            circles.pop(index)
+        for circle in circles:
+            pieces.append(piece(circle))
+
+    # do something
+    for circle in circles:
+        diff = [ item.dist(circle) for item in pieces ]
+        index = diff.index(np.min(diff))
+        pieces[index].update(circle)
+
+    for item in pieces:
+        item.draw(out)
+
 #    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
-    return img
+
+    # crop to detected table
+#    out = out[min(table[:,1]): max(table[:,1]), min(table[:,0]): max(table[:,0])]
+
+    return out
+
+
+vs = WebcamVideoStream(src=0).start()
+fps = FPS().start()
+cfps = cheap_fps()
+
+cv2.namedWindow('science!', cv2.WINDOW_NORMAL)
+cv2.setWindowProperty("science!",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+
+# loop over some frames...this time using the threaded stream
+while(True):
+	if cv2.waitKey(1) & 0xFF == ord('q'):
+		break
+	# grab the frame from the threaded video stream and resize it
+	# to have a maximum width of 400 pixels
+	frame = vs.read()
+	frame = imutils.resize(frame, width=800)
+	annotated = annotate(frame)
+	cropped = annotated[150:-190,130:-220]
+#	resized = imutils.resize(annotated, width=1280, height=2280)
+	out = cropped
     
-fps_buffer = []
-def main():
-    last = timer()
-    vs = WebcamVideoStream(src=0)
-    vs = vs.start()
+	# update the FPS counter
+	fps.update()
+	fps_out = cfps.update()
+	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (255,0, 0), 2)
 
-    cv2.namedWindow('test', cv2.WINDOW_NORMAL)
-    #cv2.setWindowProperty("image",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+	# check to see if the frame should be displayed to our screen
+	cv2.imshow("science!", out)
 
-    while(True):
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+# stop the timer and display FPS information
+fps.stop()
+print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
-        now = timer()
-        diff = now - last
-        last = now
-        fps = 1 / diff
-        fps_buffer.append(fps)
-        if len(fps_buffer) > 10:
-            fps_buffer.pop(0)
-
-        img = vs.read()
-        #img = imutils.resize(img, width=1024)
-        annotated = annotate(img)
-        cv2.putText(annotated, str(int(np.mean(fps_buffer))), (50, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (255,0, 0), 2)
-        cv2.imshow("test", annotated)
-
-    cv2.destroyAllWindows()
-    vs.stop()
-
-main()
+# do a bit of cleanup
+cv2.destroyAllWindows()
+vs.stop()
