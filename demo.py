@@ -21,21 +21,21 @@ from imutils import perspective
 import datetime
 
 class piece:
-    def __init__(self, circle):
-        self.speed = 0
-        self.retries = 0
-        self.direction = 0
-        self.update(circle)
+	def __init__(self, circle):
+		self.speed = 0
+		self.retries = 0
+		self.direction = 0
+		self.update(circle)
 
-    def update(self, circle):
-        self.center = (int(circle[0][0]), int(circle[0][1]))
-        self.radius = int(circle[1])
-    
-    def dist(self, circle):
-        return np.sum(abs(np.asarray(self.center) - np.asarray(circle[0])))
+	def update(self, circle):
+		self.center = (int(circle[0][0]), int(circle[0][1]))
+		self.radius = int(circle[1])
+	
+	def dist(self, circle):
+		return np.sum(abs(np.asarray(self.center) - np.asarray(circle[0])))
 
-    def draw(self, out):
-        cv2.circle(out, self.center, self.radius, (0,255,0), 2)
+	def draw(self, out):
+		cv2.circle(out, self.center, self.radius, (0,255,0), 2)
 
 class cheap_fps:
 	def __init__(self):
@@ -57,125 +57,142 @@ class cheap_fps:
 boxes = []
 pieces = []
 def annotate(img):
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+	rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    ## isolate HUE
-    hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-    hsv[:,:,1:] = 0
-    t, hue = cv2.threshold(hsv, 50, 255, cv2.THRESH_BINARY)
-    hue = ~hue[:,:,0]
+	## isolate HUE
+	hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+	hsv[:,:,1:] = 0
+	t, hue = cv2.threshold(hsv, 50, 255, cv2.THRESH_BINARY)
+	hue = ~hue[:,:,0]
 
-    ## mask out black
-    t, blue = cv2.threshold(rgb, 20, 255, cv2.THRESH_BINARY_INV, cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
-    mask = ~blue[:,:,2]
-    masked = mask & hue
-    
-    ## denoise
-    kernel = np.ones((1, 1))
-    opened = cv2.morphologyEx(masked, cv2.MORPH_OPEN, kernel)
-    closed = cv2.morphologyEx(opened, cv2.MORPH_CLOSE, np.ones((1,5)))
+	## mask out black
+	t, black = cv2.threshold(rgb, 20, 255, cv2.THRESH_BINARY_INV, cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
+	mask = ~black[:,:,2]
+	masked = mask & hue
 
-    ## edges are less work
-    laplacian = cv2.Laplacian(closed,cv2.CV_8UC1)
+	# isolate blue	
+	hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+	blue_lower=np.array([80,0,0],np.uint8)
+	blue_upper=np.array([255,255,255],np.uint8)
+	blue_mask = cv2.inRange(hsv, blue_lower, blue_upper) 	
+	blue = cv2.bitwise_and(rgb, rgb, mask=blue_mask)
+	masked = blue[:,:,1] & mask
 
-    ## find largest external blob
-    im2, outer_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    max_contour = max(outer_contours, key = cv2.contourArea)
+	## make it fuzzy
+	eroded = cv2.erode(masked, None, iterations=2)
+	fuzzed = cv2.dilate(eroded, None, iterations=5)
 
-    ## translate playing area to a clean rect
-    rect = cv2.minAreaRect(max_contour)
-    box = cv2.boxPoints(rect)
-    ordered = perspective.order_points(box)
-    boxes.append(ordered)
-    if len(boxes) > 50:
-        boxes.pop(0)
-    table = np.int0(np.mean(boxes, axis=0))
+	## edges are less work
+	laplacian = cv2.Laplacian(fuzzed,cv2.CV_8UC1)
 
-    ## get all of the shapes
-    im2, all_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+	## find largest external blob
+	im2, outer_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+	max_contour = max(outer_contours, key = cv2.contourArea)
+	blob = cv2.approxPolyDP(max_contour, 0.01*cv2.arcLength(max_contour, True), True)
 
-    ## isolate the shapes inside the table area
-    contours_in_box = [c for c in all_contours if not (min(c[:,0,0]) <= min(table[:,0]) or max(c[:,0,0]) >= max(table[:,0]) or min(c[:,0,1]) <= min(table[:,1]) or max(c[:,0,1]) >= max(table[:,1]))]
+	## translate playing area to a clean rect
+	rect = cv2.minAreaRect(blob)
+	box = cv2.boxPoints(rect)
+	ordered = perspective.order_points(box)
+	boxes.append(ordered)
+	if len(boxes) > 50:
+		boxes.pop(0)
+	table = np.int0(np.mean(boxes, axis=0))
 
-    ## filter out large shapes
-    def get_area(c):
-        m = cv2.moments(c)
-        return m['m00']
-    max_area = get_area(max_contour)
-    small_contours = [c for c in contours_in_box if (get_area(c) * 100 / max_area) < 50 and (get_area(c) * 100 / max_area) > 0.1]
+	## get not blue inside the box
+	not_blue = ~masked
+	table_mask = np.zeros_like(masked)
+	cv2.fillPoly(table_mask, np.array([box], dtype=np.int32), 255)
+	not_blue = not_blue & table_mask
+	t, thresh = cv2.threshold(not_blue, 254, 255, cv2.THRESH_BINARY, cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
 
-    ## filter out non-circular shapes
-    def is_circle(c):
-        polys = len(cv2.approxPolyDP(c,0.01*cv2.arcLength(c,True),True))
-        if polys < 8 or polys > 15:
-            return False
+	## edges are less work
+	laplacian = cv2.Laplacian(thresh, cv2.CV_8UC1)
 
-        center, radius = cv2.minEnclosingCircle(c)
-        area = get_area(c)
-        circle_area = 3.14*radius*radius
-        if abs(area-circle_area) > .5 * area:
-            return False
+	## get all of the shapes
+	im2, all_contours, hierarchy = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)                                                   
+	test = cv2.drawContours(np.zeros_like(laplacian), all_contours, -1, (255,255,255), 1)
 
-        return True
+	## get all of the shapes
+	im2, all_contours, hierarchy = cv2.findContours(laplacian, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
 
-    circular_contours = [c for c in small_contours if is_circle(c)]
-    
-    out = np.zeros_like(img)
-#    out = img
+	## filter by size
+	def get_area(c):
+		m = cv2.moments(c)
+		return m['m00']
+	small_contours = [c for c in all_contours if get_area(c) < 400 and get_area(c) > 50]
 
-    ## put it all together
-    #cv2.drawContours(out, [table], 0, (255, 0, 0), 2) # draw table
-    circles = []
-    for c in circular_contours:
-        center, radius = cv2.minEnclosingCircle(c)
-        if radius < 20 and radius > 10:
-            circles.append( (center, radius) )
+	## filter out non-circular shapes
+	def is_circle(c):
+		center, radius = cv2.minEnclosingCircle(c)
+		area = get_area(c)
+		circle_area = 3.14*radius*radius
+		if abs(area-circle_area) > .5 * area:
+			return False
 
-    if len(circles) < len(pieces):
-        # remove from pieces
-        extras = list(pieces)
-        for circle in circles:
-            diff = [ extra.dist(circle) for extra in extras ]
-            index = diff.index(np.min(diff))
-            pieces[pieces.index(extras[index])].retries = 0
-            extras.pop(index)
-        for extra in extras:
-            extra.retries += 1
-            if extra.retries > 2:
-                pieces.pop(pieces.index(extra))
+		return True
 
-    if len(circles) > len(pieces):
-        # add to pieces
-        for item in pieces:
-            diff = [ item.dist(circle) for circle in circles ]
-            index = diff.index(np.min(diff))
-            circles.pop(index)
-        for circle in circles:
-            pieces.append(piece(circle))
+	circular_contours = [c for c in small_contours if is_circle(c)]
+	
+	out = np.zeros_like(img)
+	out = img
 
-    # do something
-    for circle in circles:
-        diff = [ item.dist(circle) for item in pieces ]
-        index = diff.index(np.min(diff))
-        pieces[index].update(circle)
+	## put it all together
+	#cv2.drawContours(out, [table], 0, (255, 0, 0), 2) # draw table
+	circles = []
+	for c in circular_contours:
+		center, radius = cv2.minEnclosingCircle(c)
+		if radius < 20 and radius > 10:
+			circles.append( (center, radius) )
 
-    for item in pieces:
-        item.draw(out)
+	if len(circles) < len(pieces):
+		# remove from pieces
+		extras = list(pieces)
+		for circle in circles:
+			diff = [ extra.dist(circle) for extra in extras ]
+			index = diff.index(np.min(diff))
+			pieces[pieces.index(extras[index])].retries = 0
+			extras.pop(index)
+		for extra in extras:
+			extra.retries += 1
+			if extra.retries > 2:
+				pieces.pop(pieces.index(extra))
+
+	if len(circles) > len(pieces):
+		# add to pieces
+		for item in pieces:
+			diff = [ item.dist(circle) for circle in circles ]
+			index = diff.index(np.min(diff))
+			circles.pop(index)
+		for circle in circles:
+			pieces.append(piece(circle))
+
+	# do something
+	for circle in circles:
+		diff = [ item.dist(circle) for item in pieces ]
+		index = diff.index(np.min(diff))
+		pieces[index].update(circle)
+
+	for item in pieces:
+		item.draw(out)
 
 #    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
 
-    # crop to detected table
-#    out = out[min(table[:,1]): max(table[:,1]), min(table[:,0]): max(table[:,0])]
+	# crop to detected table
+	out = out[min(table[:,1]): max(table[:,1]), min(table[:,0]): max(table[:,0])]
 
-    return out
+	return out
 
 
 vs = WebcamVideoStream(src=0).start()
 fps = FPS().start()
 cfps = cheap_fps()
 
-cv2.namedWindow('science!', cv2.WINDOW_NORMAL)
-cv2.setWindowProperty("science!",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+window_name = "science!"
+cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
+cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
+cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
 # loop over some frames...this time using the threaded stream
 while(True):
@@ -184,19 +201,23 @@ while(True):
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 400 pixels
 	frame = vs.read()
-	frame = imutils.resize(frame, width=800)
+	
+#	frame = cv2.imread(r'notebooks/overhead-science-4.png')
+
+#	frame = imutils.resize(frame, width=800)
 	annotated = annotate(frame)
-	cropped = annotated[150:-190,130:-220]
+	trim = int(np.asarray(annotated).shape[1]*0.1)
+	cropped = annotated[:, trim:-1*trim]
 #	resized = imutils.resize(annotated, width=1280, height=2280)
 	out = cropped
-    
+	
 	# update the FPS counter
 	fps.update()
 	fps_out = cfps.update()
 	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (255,0, 0), 2)
 
 	# check to see if the frame should be displayed to our screen
-	cv2.imshow("science!", out)
+	cv2.imshow(window_name, out)
 
 # stop the timer and display FPS information
 fps.stop()
