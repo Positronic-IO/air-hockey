@@ -179,45 +179,80 @@ def annotate(img):
 #    cv2.drawContours(img, circular_contours, -1, (0,255,0), 2)
 
 	# crop to detected table
-	out = out[min(table[:,1]): max(table[:,1]), min(table[:,0]): max(table[:,0])]
+	#out = out[min(table[:,1]): max(table[:,1]), min(table[:,0]): max(table[:,0])]
+	coords = (min(table[:,1]), max(table[:,1]), min(table[:,0]), max(table[:,0]))
+	return (out, coords)
 
-	return out
 
+vs = cv2.VideoCapture('out.mp4')
 
-vs = WebcamVideoStream(src=0).start()
+frame_count = int(cv2.VideoCapture.get(vs, int(cv2.CAP_PROP_FRAME_COUNT)))
+frame_index = -1
+#vs = WebcamVideoStream(src=0).start()
 fps = FPS().start()
 cfps = cheap_fps()
 
+import os
+if os.path.exists('pos.npy'):
+	pos = np.int0(np.load('pos.npy'))
+else:
+	pos = np.zeros((frame_count,2))
+
+def drawX(x, y):
+	global out, window_name
+	text = "X"
+	font_face = cv2.FONT_HERSHEY_PLAIN
+	font_scale = 2
+	thickness = 2
+	size = cv2.getTextSize(text, font_face, font_scale, thickness)
+	cv2.putText(out, text, (x - int(size[0][0] / 2), y + int(size[0][1] / 2)), font_face, font_scale, (255,0, 0), thickness)
+	print(x,y)
+
+def callback(event, x, y, flags, param):
+	if event == cv2.EVENT_LBUTTONDOWN:
+		pos[frame_index] = np.int0(np.asarray([x,y]))
+		drawX(x, y)
+		cv2.imshow(window_name, frame)
+
 window_name = "science!"
-cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+#cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
 cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
 cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+cv2.setMouseCallback(window_name, callback)
 
 # loop over some frames...this time using the threaded stream
 while(True):
-	if cv2.waitKey(1) & 0xFF == ord('q'):
-		break
 	# grab the frame from the threaded video stream and resize it
 	# to have a maximum width of 400 pixels
-	frame = vs.read()
-	
+	_, frame = vs.read()
+	# frame = vs.read()
+	frame_index += 1
 #	frame = cv2.imread(r'notebooks/overhead-science-4.png')
 
 #	frame = imutils.resize(frame, width=800)
-	annotated = annotate(frame)
-	trim = int(np.asarray(annotated).shape[1]*0.1)
-	cropped = annotated[:, trim:-1*trim]
+#	annotated, coords = annotate(frame)
+#	cropped = annotated[coords[0]:coords[1], coords[2]:coords[3]]
+	#trim = int(np.asarray(annotated).shape[1]*0.1)
+	#cropped = annotated[:, trim:-1*trim]
+
 #	resized = imutils.resize(annotated, width=1280, height=2280)
-	out = cropped
+	out = frame
+	if np.sum(pos[frame_index]) > 0:
+		drawX(pos[frame_index][0], pos[frame_index][1])
 	
 	# update the FPS counter
 	fps.update()
 	fps_out = cfps.update()
-	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 2.5, (255,0, 0), 2)
+	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
 
 	# check to see if the frame should be displayed to our screen
 	cv2.imshow(window_name, out)
+
+	if cv2.waitKey(0) & 0xFF == ord('q'):
+		break
+
+np.save("pos", pos)
 
 # stop the timer and display FPS information
 fps.stop()
@@ -225,4 +260,5 @@ print("[INFO] approx. FPS: {:.2f}".format(fps.fps()))
 
 # do a bit of cleanup
 cv2.destroyAllWindows()
-vs.stop()
+vs.release()
+#vs.stop()
