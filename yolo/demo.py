@@ -1,11 +1,15 @@
 #!python3
 #pylint: disable=R, W0401, W0614, W0703
+from imutils.video import WebcamVideoStream
 from ctypes import *
 import math
 import random
 import os
 import logging
 import cv2
+from skimage import io, draw
+import numpy as np
+import fps
 
 def sample(probs):
     s = sum(probs)
@@ -58,9 +62,8 @@ predict = lib.network_predict
 predict.argtypes = [c_void_p, POINTER(c_float)]
 predict.restype = POINTER(c_float)
 
-if hasGPU:
-    set_gpu = lib.cuda_set_device
-    set_gpu.argtypes = [c_int]
+set_gpu = lib.cuda_set_device
+set_gpu.argtypes = [c_int]
 
 make_image = lib.make_image
 make_image.argtypes = [c_int, c_int, c_int]
@@ -151,58 +154,31 @@ def detect(net, meta, custom_image_bgr, thresh=.5, hier_thresh=.5, nms=.45, debu
     Performs the meat of the detection
     """
     #pylint: disable= C0321
-    #import cv2
-    #custom_image_bgr = cv2.imread(image) # use: detect(,,imagePath,)
     custom_image = cv2.cvtColor(custom_image_bgr, cv2.COLOR_BGR2RGB)
-    custom_image = cv2.resize(custom_image,(lib.network_width(net), lib.network_height(net)), interpolation = cv2.INTER_LINEAR)
-    #import scipy.misc
-    #custom_image = scipy.misc.imread(image)
+#    custom_image = cv2.resize(custom_image,(lib.network_width(net), lib.network_height(net)), interpolation = cv2.INTER_LINEAR)
 
-    im, arr = array_to_image(custom_image)		# you should comment line below: free_image(im)
+    im, arr = array_to_image(custom_image)
 
-    if debug: print("Loaded image")
     num = c_int(0)
-    if debug: print("Assigned num")
     pnum = pointer(num)
-    if debug: print("Assigned pnum")
     predict_image(net, im)
-    if debug: print("did prediction")
-    #dets = get_network_boxes(net, custom_image_bgr.shape[1], custom_image_bgr.shape[0], thresh, hier_thresh, None, 0, pnum, 0) # OpenCV
     dets = get_network_boxes(net, im.w, im.h, thresh, hier_thresh, None, 0, pnum, 0)
-    if debug: print("Got dets")
     num = pnum[0]
-    if debug: print("got zeroth index of pnum")
     if nms:
         do_nms_sort(dets, num, meta.classes, nms)
-    if debug: print("did sort")
     res = []
-    if debug: print("about to range")
     for j in range(num):
-        if debug: print("Ranging on "+str(j)+" of "+str(num))
-        if debug: print("Classes: "+str(meta), meta.classes, meta.names)
         for i in range(meta.classes):
-            if debug: print("Class-ranging on "+str(i)+" of "+str(meta.classes)+"= "+str(dets[j].prob[i]))
             if dets[j].prob[i] > 0:
                 b = dets[j].bbox
                 if altNames is None:
                     nameTag = meta.names[i]
                 else:
                     nameTag = altNames[i]
-                if debug:
-                    print("Got bbox", b)
-                    print(nameTag)
-                    print(dets[j].prob[i])
-                    print((b.x, b.y, b.w, b.h))
                 res.append((nameTag, dets[j].prob[i], (b.x, b.y, b.w, b.h)))
-    if debug: print("did range")
     res = sorted(res, key=lambda x: -x[1])
-    if debug: print("did sort")
-    #free_image(im)
-    if debug: print("freed image")
     free_detections(dets, num)
-    if debug: print("freed detections")
     return res
-
 
 netMain = None
 metaMain = None
@@ -214,19 +190,9 @@ def main():
     configPath = "./cfg/yolo-puck.cfg"
     weightPath = "./weights/puck.weights"
     metaPath= "./cfg/puck.data"
-    showImage= False
-    makeImageOnly = False
-    initOnly= False
 
     # Import the global variables. This lets us instance Darknet once, then just call performDetect() again without instancing again
     global metaMain, netMain, altNames #pylint: disable=W0603
-    assert 0 < thresh < 1, "Threshold should be a float between zero and one (non-inclusive)"
-    if not os.path.exists(configPath):
-        raise ValueError("Invalid config path `"+os.path.abspath(configPath)+"`")
-    if not os.path.exists(weightPath):
-        raise ValueError("Invalid weight path `"+os.path.abspath(weightPath)+"`")
-    if not os.path.exists(metaPath):
-        raise ValueError("Invalid data file path `"+os.path.abspath(metaPath)+"`")
     if netMain is None:
         netMain = load_net_custom(configPath.encode("ascii"), weightPath.encode("ascii"), 0, 1)  # batch size = 1
     if metaMain is None:
@@ -252,76 +218,91 @@ def main():
                     pass
         except Exception:
             pass
-    if initOnly:
-        print("Initialized detector")
-        return None
-    #if not os.path.exists(imagePath):
-    #    raise ValueError("Invalid image path `"+os.path.abspath(imagePath)+"`")
-
-    from skimage import io, draw
-    import numpy as np
 
     window_name = "science!"
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    # cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
-    # cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
-    # cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+#    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 
-    vs = cv2.VideoCapture('data/puck/data.mp4')
-    #fourcc = cv2.VideoWriter_fourcc(*'XVID')  
-    #out = cv2.VideoWriter('output.avi',fourcc, 15.0, (640,480))
+    live = False
+    black_background = False
+    output = False
+    engaged = True 
+
+    frame_index = 0
+
+    if live:
+        vs = WebcamVideoStream(src=1).start()
+    else:
+        vs = cv2.VideoCapture('data/puck/data.mp4')
+
+    if output:
+        fourcc = cv2.VideoWriter_fourcc(*'XVID')  
+        out = cv2.VideoWriter('output.mp4',fourcc, 15.0, (640,480))
+
+    cfps = fps.cheap_fps()
 
     while(True):
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-        _, image = vs.read()
+        if live:
+            frame = vs.read()
+        else:
+            _, frame = vs.read()
 
-        detections = detect(netMain, metaMain, image, thresh)
+        frame_index += 1
+        if frame_index % 2:
+            continue
 
-        imcaption = []
-        for detection in detections:
-            label = detection[0]
-            confidence = detection[1]
-            pstring = "{}: {}%".format(label, str(np.rint(100 * confidence)))
-            imcaption.append(pstring)
-            bounds = detection[2]
-            shape = image.shape
-            yExtent = int(bounds[3])
-            xEntent = int(bounds[2])
+        if frame is not None:
+            #image = image[120:-140,65:-170]
 
-            xCoord = int(bounds[0] - bounds[2]/2)
-            yCoord = int(bounds[1] - bounds[3]/2)
-            boundingBox = [
-                [xCoord, yCoord],
-                [xCoord, yCoord + yExtent],
-                [xCoord + xEntent, yCoord + yExtent],
-                [xCoord + xEntent, yCoord]
-            ]
+            if black_background:
+                image = np.zeros_like(image)
+            else:
+                image = frame
 
-            rr, cc = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] for x in boundingBox], shape= shape)
-            rr2, cc2 = draw.polygon_perimeter([x[1] + 1 for x in boundingBox], [x[0] for x in boundingBox], shape= shape)
-            rr3, cc3 = draw.polygon_perimeter([x[1] - 1 for x in boundingBox], [x[0] for x in boundingBox], shape= shape)
-            rr4, cc4 = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] + 1 for x in boundingBox], shape= shape)
-            rr5, cc5 = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] - 1 for x in boundingBox], shape= shape)
-            boxColor = (int(255 * (1 - (confidence ** 2))), int(255 * (confidence ** 2)), 0)
-            draw.set_color(image, (rr, cc), boxColor, alpha= 0.8)
-            draw.set_color(image, (rr2, cc2), boxColor, alpha= 0.8)
-            draw.set_color(image, (rr3, cc3), boxColor, alpha= 0.8)
-            draw.set_color(image, (rr4, cc4), boxColor, alpha= 0.8)
-            draw.set_color(image, (rr5, cc5), boxColor, alpha= 0.8)
+            if engaged:
+                detections = detect(netMain, metaMain, frame, thresh)
+                for detection in detections:
+                    label = detection[0]
+                    confidence = detection[1]
+                    bounds = detection[2]
+                    shape = image.shape
+                    yExtent = int(bounds[3])
+                    xEntent = int(bounds[2])
+                    xCoord = int(bounds[0] - bounds[2]/2)
+                    yCoord = int(bounds[1] - bounds[3]/2)
+                    boundingBox = [
+                        [xCoord, yCoord],
+                        [xCoord, yCoord + yExtent],
+                        [xCoord + xEntent, yCoord + yExtent],
+                        [xCoord + xEntent, yCoord]
+                    ]
 
-        # out.write(image)
-        cv2.imshow(window_name, image)
-        # detections = {
-        #     "detections": detections,
-        #     "image": image,
-        #     "caption": "\n<br/>".join(imcaption)
-        # }
+                    rr, cc = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] for x in boundingBox], shape= shape)
+                    boxColor = (int(255 * (1 - (confidence ** 2))), int(255 * (confidence ** 2)), 0)
+                    draw.set_color(image, (rr, cc), boxColor, alpha= 0.8)
 
-    # out.release()
+            if output:
+                out.write(image)
+            cv2.putText(image, cfps.update(), (10, 10), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+            cv2.imshow(window_name, image)
+            # detections = {
+            #     "detections": detections,
+            #     "image": image,
+            #     "caption": "\n<br/>".join(imcaption)
+            # }
+
+    if output:
+        out.release()
     cv2.destroyAllWindows()
-    vs.release()
+    if live:
+        vs.stop()
+    else:
+        vs.release()
 
     return
 
