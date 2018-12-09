@@ -11,6 +11,7 @@ from skimage import io, draw
 import numpy as np
 import fps
 
+
 def sample(probs):
     s = sum(probs)
     probs = [a/s for a in probs]
@@ -51,8 +52,10 @@ class METADATA(Structure):
     _fields_ = [("classes", c_int),
                 ("names", POINTER(c_char_p))]
 
-hasGPU = True
-lib = CDLL("./darknet.so", RTLD_GLOBAL)
+    
+
+#lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
+lib = CDLL("./libdarknet.so", RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]
@@ -70,7 +73,7 @@ make_image.argtypes = [c_int, c_int, c_int]
 make_image.restype = IMAGE
 
 get_network_boxes = lib.get_network_boxes
-get_network_boxes.argtypes = [c_void_p, c_int, c_int, c_float, c_float, POINTER(c_int), c_int, POINTER(c_int), c_int]
+get_network_boxes.argtypes = [c_void_p, c_int, c_int, c_float, c_float, POINTER(c_int), c_int, POINTER(c_int)]
 get_network_boxes.restype = POINTER(DETECTION)
 
 make_network_boxes = lib.make_network_boxes
@@ -92,10 +95,6 @@ reset_rnn.argtypes = [c_void_p]
 load_net = lib.load_network
 load_net.argtypes = [c_char_p, c_char_p, c_int]
 load_net.restype = c_void_p
-
-load_net_custom = lib.load_network_custom
-load_net_custom.argtypes = [c_char_p, c_char_p, c_int, c_int]
-load_net_custom.restype = c_void_p
 
 do_nms_obj = lib.do_nms_obj
 do_nms_obj.argtypes = [POINTER(DETECTION), c_int, c_int, c_float]
@@ -194,7 +193,7 @@ def main():
     # Import the global variables. This lets us instance Darknet once, then just call performDetect() again without instancing again
     global metaMain, netMain, altNames #pylint: disable=W0603
     if netMain is None:
-        netMain = load_net_custom(configPath.encode("ascii"), weightPath.encode("ascii"), 0, 1)  # batch size = 1
+        netMain = load_net(configPath.encode("ascii"), weightPath.encode("ascii"), 0, 1)  # batch size = 1
     if metaMain is None:
         metaMain = load_meta(metaPath.encode("ascii"))
     if altNames is None:
