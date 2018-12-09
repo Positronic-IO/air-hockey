@@ -223,6 +223,7 @@ def main():
     output = False 
     engaged = True
     full_screen = True
+    show_fps = False
 
     window_name = "science!"
     if full_screen:
@@ -275,6 +276,11 @@ def main():
         if key & 0xFF == ord('S'):
             crop[0] = max(crop[0]-5, 0)
 
+        if key & 0xFF == ord('x'):
+            crop = [100, 140, 70, 225]
+        if key & 0xFF == ord('f'):
+            show_fps = not show_fps
+
         if key & 0xFF == ord('b'):
             black_background = not black_background
 
@@ -320,8 +326,9 @@ def main():
             if output:
                 out.write(image)
             image = image[crop[0]:image.shape[0]-crop[1],crop[2]:image.shape[1] - crop[3]]
-            cv2.putText(image, cfps.update(), (10, 10), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
-            cv2.putText(image, str(crop), (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+            if show_fps:
+                cv2.putText(image, cfps.update(), (10, 10), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+                cv2.putText(image, str(crop), (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
             image = cv2.resize(image, (1280, 800), interpolation=cv2.INTER_CUBIC)
             cv2.imshow(window_name, image)
             # detections = {
