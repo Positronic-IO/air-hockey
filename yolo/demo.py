@@ -185,7 +185,7 @@ altNames = None
 
 def main():
     #imagePath="1913.jpg"
-    thresh = 0.1
+    thresh = 0.2
     configPath = "./cfg/yolo-puck.cfg"
     weightPath = "./weights/puck.weights"
     metaPath= "./cfg/puck.data"
@@ -219,10 +219,10 @@ def main():
             pass
 
     live = True
-    black_background = True
+    black_background = True 
     output = False 
     engaged = True
-    full_screen = True 
+    full_screen = True
 
     window_name = "science!"
     if full_screen:
@@ -231,7 +231,15 @@ def main():
         cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
     else:
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-   
+ 
+#    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+#    cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
+#    cv2.namedWindow(window_name, cv2.WND_PROP_FULLSCREEN)
+#    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+#    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
+
+    crop = [0, 0, 0, 0]
+
     frame_index = 0
 
     if live:
@@ -246,8 +254,29 @@ def main():
     cfps = fps.cheap_fps()
 
     while(True):
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        key = cv2.waitKey(1)
+        if key & 0xFF == ord('q'):
             break
+        if key & 0xFF == ord('a'):
+            crop[3] += 5
+        if key & 0xFF == ord('A'):
+            crop[3] = max(crop[3]-5, 0)
+        if key & 0xFF == ord('d'):
+            crop[2] += 5
+        if key & 0xFF == ord('D'):
+            crop[2] = max(crop[2]-5,0)
+
+        if key & 0xFF == ord('w'):
+            crop[1] += 5
+        if key & 0xFF == ord('W'):
+            crop[1] = max(crop[1]-5, 0)
+        if key & 0xFF == ord('s'):
+            crop[0] += 5
+        if key & 0xFF == ord('S'):
+            crop[0] = max(crop[0]-5, 0)
+
+        if key & 0xFF == ord('b'):
+            black_background = not black_background
 
         if live:
             frame = vs.read()
@@ -264,7 +293,7 @@ def main():
             else:
                 image = frame
 
-            image = image[120:-140,65:-170]
+#            image = image[120:-140,65:-170]
 
             if engaged:
                 detections = detect(netMain, metaMain, frame, thresh)
@@ -290,7 +319,10 @@ def main():
 
             if output:
                 out.write(image)
+            image = image[crop[0]:image.shape[0]-crop[1],crop[2]:image.shape[1] - crop[3]]
             cv2.putText(image, cfps.update(), (10, 10), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+            cv2.putText(image, str(crop), (10, 30), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+            image = cv2.resize(image, (1280, 800), interpolation=cv2.INTER_CUBIC)
             cv2.imshow(window_name, image)
             # detections = {
             #     "detections": detections,
