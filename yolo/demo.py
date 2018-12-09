@@ -218,27 +218,30 @@ def main():
         except Exception:
             pass
 
+    live = True
+    black_background = True
+    output = False 
+    engaged = True
+    full_screen = True 
+
     window_name = "science!"
-#    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
-    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
-    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
-
-    live = False
-    black_background = False
-    output = False
-    engaged = True 
-
+    if full_screen:
+        cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
+        cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+    else:
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+   
     frame_index = 0
 
     if live:
-        vs = WebcamVideoStream(src=1).start()
+        vs = WebcamVideoStream(src=0).start()
     else:
         vs = cv2.VideoCapture('data/puck/data.mp4')
 
     if output:
         fourcc = cv2.VideoWriter_fourcc(*'XVID')  
-        out = cv2.VideoWriter('output.mp4',fourcc, 15.0, (640,480))
+        out = cv2.VideoWriter('output.mp4',fourcc, 30.0, (640,480))
 
     cfps = fps.cheap_fps()
 
@@ -252,16 +255,16 @@ def main():
             _, frame = vs.read()
 
         frame_index += 1
-        if frame_index % 2:
-            continue
+#        if frame_index % 2:
+#            continue
 
         if frame is not None:
-            #image = image[120:-140,65:-170]
-
             if black_background:
-                image = np.zeros_like(image)
+                image = np.zeros_like(frame)
             else:
                 image = frame
+
+            image = image[120:-140,65:-170]
 
             if engaged:
                 detections = detect(netMain, metaMain, frame, thresh)
