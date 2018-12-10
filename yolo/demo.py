@@ -55,7 +55,7 @@ class METADATA(Structure):
     
 
 #lib = CDLL("/home/pjreddie/documents/darknet/libdarknet.so", RTLD_GLOBAL)
-lib = CDLL("./libdarknet.so", RTLD_GLOBAL)
+lib = CDLL("./darknet.so", RTLD_GLOBAL)
 lib.network_width.argtypes = [c_void_p]
 lib.network_width.restype = c_int
 lib.network_height.argtypes = [c_void_p]
@@ -185,9 +185,9 @@ altNames = None
 
 def main():
     #imagePath="1913.jpg"
-    thresh = 0.2
+    thresh = 0.1
     configPath = "./cfg/yolo-puck.cfg"
-    weightPath = "./weights/puck.weights"
+    weightPath = "./weights/yolo-puck_30000.weights"
     metaPath= "./cfg/puck.data"
 
     # Import the global variables. This lets us instance Darknet once, then just call performDetect() again without instancing again
@@ -239,7 +239,8 @@ def main():
 #    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 #    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
 
-    crop = [0, 0, 0, 0]
+    crop_baseline = [120, 140, 80, 215]
+    crop = crop_baseline
 
     frame_index = 0
 
@@ -277,7 +278,9 @@ def main():
             crop[0] = max(crop[0]-5, 0)
 
         if key & 0xFF == ord('x'):
-            crop = [100, 140, 70, 225]
+            crop = crop_baseline 
+        if key & 0xFF == ord('X'):
+            crop = [0, 0, 0, 0]
         if key & 0xFF == ord('f'):
             show_fps = not show_fps
 
@@ -298,8 +301,6 @@ def main():
                 image = np.zeros_like(frame)
             else:
                 image = frame
-
-#            image = image[120:-140,65:-170]
 
             if engaged:
                 detections = detect(netMain, metaMain, frame, thresh)
