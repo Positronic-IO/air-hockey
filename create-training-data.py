@@ -193,26 +193,43 @@ fps = FPS().start()
 cfps = cheap_fps()
 
 import os
-if os.path.exists('pos.npy'):
-	pos = np.int0(np.load('pos.npy'))
-else:
-	pos = np.zeros((frame_count,2))
+def init_pos(index):
+	path = 'pos-{}.npy'.format(str(index))
+	if os.path.exists(path):
+		ret = np.int0(np.load(path))
+	else:
+		ret = np.zeros((frame_count,2))
+	return ret
+pos1 = init_pos(1)
+pos2 = init_pos(2)
+left_color = (26, 253, 141)
+right_color = (255, 255, 255)
 
-def drawX(x, y):
+def drawX(x, y, color):
 	global out, window_name
 	text = "X"
 	font_face = cv2.FONT_HERSHEY_PLAIN
 	font_scale = 2
 	thickness = 2
 	size = cv2.getTextSize(text, font_face, font_scale, thickness)
-	cv2.putText(out, text, (x - int(size[0][0] / 2), y + int(size[0][1] / 2)), font_face, font_scale, (255,0, 0), thickness)
+	cv2.putText(out, text, (x - int(size[0][0] / 2), y + int(size[0][1] / 2)), font_face, font_scale, color, thickness)
 	print(x,y)
 
 def callback(event, x, y, flags, param):
-	if event == cv2.EVENT_LBUTTONDOWN:
-		pos[frame_index] = np.int0(np.asarray([x,y]))
-		drawX(x, y)
+	if event == cv2.EVENT_RBUTTONDOWN:
+		pos2[frame_index] = np.int0(np.asarray([x,y]))
+		drawX(x, y, right_color)
 		cv2.imshow(window_name, frame)
+
+	if event == cv2.EVENT_LBUTTONDOWN:
+		if flags & cv2.EVENT_FLAG_CTRLKEY:
+			pos2[frame_index] = np.int0(np.asarray([x,y]))
+			drawX(x, y, right_color)
+			cv2.imshow(window_name, frame)
+		else:
+			pos1[frame_index] = np.int0(np.asarray([x,y]))
+			drawX(x, y, left_color) 
+			cv2.imshow(window_name, frame)
 
 window_name = "science!"
 #cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -238,12 +255,15 @@ while(True):
 
 #	resized = imutils.resize(annotated, width=1280, height=2280)
 	out = frame
-	if np.sum(pos[frame_index]) > 0:
-		drawX(pos[frame_index][0], pos[frame_index][1])
+	if np.sum(pos1[frame_index]) > 0:
+		drawX(pos1[frame_index][0], pos1[frame_index][1], left_color)
+	if np.sum(pos2[frame_index]) > 0:
+		drawX(pos2[frame_index][0], pos2[frame_index][1], right_color)
 	
 	# update the FPS counter
 	fps.update()
-	fps_out = cfps.update()
+	#fps_out = cfps.update()
+	fps_out = "{}/{}".format(str(frame_index), str(frame_count))
 	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
 
 	# check to see if the frame should be displayed to our screen
@@ -252,7 +272,8 @@ while(True):
 	if cv2.waitKey(0) & 0xFF == ord('q'):
 		break
 
-np.save("pos", pos)
+np.save("pos-1", pos1)
+np.save("pos-2", pos2)
 
 # stop the timer and display FPS information
 fps.stop()
