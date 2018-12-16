@@ -11,6 +11,8 @@ from skimage import io, draw
 import numpy as np
 import fps
 
+crop_baseline = [0, 0, 0, 0]
+crop = crop_baseline
 
 def sample(probs):
     s = sum(probs)
@@ -124,6 +126,14 @@ predict_image = lib.network_predict_image
 predict_image.argtypes = [c_void_p, IMAGE]
 predict_image.restype = POINTER(c_float)
 
+live = True
+black_background = True 
+output = False 
+engaged = True
+full_screen = True
+show_fps = False
+rotate = 90
+
 def array_to_image(arr):
     import numpy as np
     # need to return old values to avoid python freeing memory
@@ -179,6 +189,54 @@ def detect(net, meta, custom_image_bgr, thresh=.5, hier_thresh=.5, nms=.45, debu
     free_detections(dets, num)
     return res
 
+def process_cmd(key):
+    global crop, show_fps, black_background
+    if key & 0xFF == ord('a'):
+        crop[3] += 5
+    if key & 0xFF == ord('A'):
+        crop[3] = max(crop[3]-5, 0)
+    if key & 0xFF == ord('d'):
+        crop[2] += 5
+    if key & 0xFF == ord('D'):
+        crop[2] = max(crop[2]-5,0)
+
+    if key & 0xFF == ord('w'):
+        crop[1] += 5
+    if key & 0xFF == ord('W'):
+        crop[1] = max(crop[1]-5, 0)
+    if key & 0xFF == ord('s'):
+        crop[0] += 5
+    if key & 0xFF == ord('S'):
+        crop[0] = max(crop[0]-5, 0)
+
+    if key & 0xFF == ord('x'):
+        crop = crop_baseline 
+    if key & 0xFF == ord('X'):
+        crop = [0, 0, 0, 0]
+    if key & 0xFF == ord('f'):
+        show_fps = not show_fps
+
+    if key & 0xFF == ord('b'):
+        black_background = not black_background
+
+
+def detection_to_puck(detection):
+    label = detection[0]
+    confidence = detection[1]
+    bounds = detection[2]
+    yExtent = int(bounds[3])
+    xEntent = int(bounds[2])
+    xCoord = int(bounds[0] - bounds[2]/2)
+    yCoord = int(bounds[1] - bounds[3]/2)
+    boundingBox = [
+        [xCoord, yCoord],
+        [xCoord, yCoord + yExtent],
+        [xCoord + xEntent, yCoord + yExtent],
+        [xCoord + xEntent, yCoord]
+    ]
+    return label, confidence, boundingBox
+
+
 netMain = None
 metaMain = None
 altNames = None
@@ -191,7 +249,7 @@ def main():
     metaPath= "./cfg/puck.data"
 
     # Import the global variables. This lets us instance Darknet once, then just call performDetect() again without instancing again
-    global metaMain, netMain, altNames #pylint: disable=W0603
+    global metaMain, netMain, altNames, crop, crop_baseline, rotate #pylint: disable=W0603
     if netMain is None:
         netMain = load_net(configPath.encode("ascii"), weightPath.encode("ascii"), 0, 1)  # batch size = 1
     if metaMain is None:
@@ -218,12 +276,6 @@ def main():
         except Exception:
             pass
 
-    live = True
-    black_background = True 
-    output = False 
-    engaged = True
-    full_screen = True
-    show_fps = False
 
     window_name = "science!"
     if full_screen:
@@ -239,8 +291,6 @@ def main():
 #    cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 #    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
 
-    crop_baseline = [120, 140, 80, 215]
-    crop = crop_baseline
 
     frame_index = 0
 
@@ -255,37 +305,12 @@ def main():
 
     cfps = fps.cheap_fps()
 
+    last_detections = []
     while(True):
         key = cv2.waitKey(1)
         if key & 0xFF == ord('q'):
             break
-        if key & 0xFF == ord('a'):
-            crop[3] += 5
-        if key & 0xFF == ord('A'):
-            crop[3] = max(crop[3]-5, 0)
-        if key & 0xFF == ord('d'):
-            crop[2] += 5
-        if key & 0xFF == ord('D'):
-            crop[2] = max(crop[2]-5,0)
-
-        if key & 0xFF == ord('w'):
-            crop[1] += 5
-        if key & 0xFF == ord('W'):
-            crop[1] = max(crop[1]-5, 0)
-        if key & 0xFF == ord('s'):
-            crop[0] += 5
-        if key & 0xFF == ord('S'):
-            crop[0] = max(crop[0]-5, 0)
-
-        if key & 0xFF == ord('x'):
-            crop = crop_baseline 
-        if key & 0xFF == ord('X'):
-            crop = [0, 0, 0, 0]
-        if key & 0xFF == ord('f'):
-            show_fps = not show_fps
-
-        if key & 0xFF == ord('b'):
-            black_background = not black_background
+        process_cmd(key)
 
         if live:
             frame = vs.read()
@@ -293,10 +318,13 @@ def main():
             _, frame = vs.read()
 
         frame_index += 1
-#        if frame_index % 2:
-#            continue
 
         if frame is not None:
+            if rotate != 0:
+                rows,cols = frame.shape[:2]
+                M = cv2.getRotationMatrix2D((cols/2,rows/2),rotate,1)
+                frame = cv2.warpAffine(frame,M,(cols,rows))
+
             if black_background:
                 image = np.zeros_like(frame)
             else:
@@ -304,23 +332,14 @@ def main():
 
             if engaged:
                 detections = detect(netMain, metaMain, frame, thresh)
+                #print(detections)
+                #if len(detections) == 0:
+                #    detections = last_detections
+                #last_detections = detections
                 for detection in detections:
-                    label = detection[0]
-                    confidence = detection[1]
-                    bounds = detection[2]
-                    shape = image.shape
-                    yExtent = int(bounds[3])
-                    xEntent = int(bounds[2])
-                    xCoord = int(bounds[0] - bounds[2]/2)
-                    yCoord = int(bounds[1] - bounds[3]/2)
-                    boundingBox = [
-                        [xCoord, yCoord],
-                        [xCoord, yCoord + yExtent],
-                        [xCoord + xEntent, yCoord + yExtent],
-                        [xCoord + xEntent, yCoord]
-                    ]
+                    label, confidence, boundingBox = detection_to_puck(detection)
 
-                    rr, cc = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] for x in boundingBox], shape= shape)
+                    rr, cc = draw.polygon_perimeter([x[1] for x in boundingBox], [x[0] for x in boundingBox], shape= image.shape)
                     boxColor = (int(255 * (1 - (confidence ** 2))), int(255 * (confidence ** 2)), 0)
                     draw.set_color(image, (rr, cc), boxColor, alpha= 0.8)
 
