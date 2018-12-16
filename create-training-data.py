@@ -20,6 +20,12 @@ from imutils import perspective
 # import the necessary packages
 import datetime
 
+window_name = "science!"
+#cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
+cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
+cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+
 class piece:
 	def __init__(self, circle):
 		self.speed = 0
@@ -187,6 +193,42 @@ def annotate(img):
 vs = cv2.VideoCapture('out.mp4')
 
 frame_count = int(cv2.VideoCapture.get(vs, int(cv2.CAP_PROP_FRAME_COUNT)))
+
+def process_frame(frame):
+	global fps, out, frame_index
+	out = frame
+#	frame = cv2.imread(r'notebooks/overhead-science-4.png')
+
+#	frame = imutils.resize(frame, width=800)
+#	annotated, coords = annotate(frame)
+#	cropped = annotated[coords[0]:coords[1], coords[2]:coords[3]]
+	#trim = int(np.asarray(annotated).shape[1]*0.1)
+	#cropped = annotated[:, trim:-1*trim]
+
+#	resized = imutils.resize(annotated, width=1280, height=2280)
+
+	if np.sum(pos1[frame_index]) > 0:
+		drawX(pos1[frame_index][0], pos1[frame_index][1], left_color)
+	if np.sum(pos2[frame_index]) > 0:
+		drawX(pos2[frame_index][0], pos2[frame_index][1], right_color)
+	
+	# update the FPS counter
+	fps.update()
+	#fps_out = cfps.update()
+	fps_out = "{}/{}".format(str(frame_index), str(frame_count))
+	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
+
+	# check to see if the frame should be displayed to our screen
+	cv2.imshow(window_name, out)
+
+def on_trackbar(pos, data = None):
+	global frame_index
+	cv2.VideoCapture.set(vs, int(cv2.CAP_PROP_POS_FRAMES), pos)
+	_, frame = vs.read()
+	frame_index = pos
+	process_frame(frame)
+
+cv2.createTrackbar('Frame', window_name, 1, frame_count, on_trackbar)
 frame_index = -1
 #vs = WebcamVideoStream(src=0).start()
 fps = FPS().start()
@@ -230,12 +272,6 @@ def callback(event, x, y, flags, param):
 			pos1[frame_index] = np.int0(np.asarray([x,y]))
 			drawX(x, y, left_color) 
 			cv2.imshow(window_name, frame)
-
-window_name = "science!"
-#cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-cv2.namedWindow(window_name, cv2.WINDOW_FREERATIO)
-cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
-cv2.setWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 cv2.setMouseCallback(window_name, callback)
 
 # loop over some frames...this time using the threaded stream
@@ -245,30 +281,10 @@ while(True):
 	_, frame = vs.read()
 	# frame = vs.read()
 	frame_index += 1
-#	frame = cv2.imread(r'notebooks/overhead-science-4.png')
+	cv2.setTrackbarPos('Frame', window_name, frame_index) 
 
-#	frame = imutils.resize(frame, width=800)
-#	annotated, coords = annotate(frame)
-#	cropped = annotated[coords[0]:coords[1], coords[2]:coords[3]]
-	#trim = int(np.asarray(annotated).shape[1]*0.1)
-	#cropped = annotated[:, trim:-1*trim]
-
-#	resized = imutils.resize(annotated, width=1280, height=2280)
-	out = frame
-	if np.sum(pos1[frame_index]) > 0:
-		drawX(pos1[frame_index][0], pos1[frame_index][1], left_color)
-	if np.sum(pos2[frame_index]) > 0:
-		drawX(pos2[frame_index][0], pos2[frame_index][1], right_color)
+	process_frame(frame)
 	
-	# update the FPS counter
-	fps.update()
-	#fps_out = cfps.update()
-	fps_out = "{}/{}".format(str(frame_index), str(frame_count))
-	cv2.putText(out, fps_out, (50, 50), cv2.FONT_HERSHEY_PLAIN, 1, (255,0, 0), 2)
-
-	# check to see if the frame should be displayed to our screen
-	cv2.imshow(window_name, out)
-
 	if cv2.waitKey(0) & 0xFF == ord('q'):
 		break
 
