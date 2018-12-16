@@ -43,7 +43,7 @@ class ui:
 
 		self.puck_markers = markers(frame_count)
 
-		cv2.namedWindow(self.window_name, cv2.WINDOW_FREERATIO)
+		cv2.namedWindow(self.window_name, cv2.WINDOW_FREERATIO | cv2.WINDOW_GUI_NORMAL)
 		cv2.setWindowProperty(self.window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_FREERATIO)
 		cv2.setWindowProperty(self.window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 		cv2.setMouseCallback(self.window_name, self.on_click)
@@ -72,7 +72,6 @@ class ui:
 		print(x, y)
 		self.puck_markers.draw(self.frame_index, self.frame_current)
 		cv2.imshow(self.window_name, self.frame_current)
-		return False
 
 	def process_frame(self):
 		_, self.frame_current = self.vs.read()
