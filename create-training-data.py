@@ -1,7 +1,4 @@
-from __future__ import print_function
-from imutils.video import WebcamVideoStream
 import cv2
-from timeit import default_timer as timer
 import numpy as np
 import os
 
@@ -35,14 +32,14 @@ class markers:
 			fontFace=cv2.FONT_HERSHEY_PLAIN, fontScale=2, color=color, thickness=2)
 
 class ui:
-	def __init__(self, video_source):
+	def __init__(self, video_path):
 		self.window_name = "science!"
 		self.slider_name = 'Frame'
 		self.frame_index = 0
 		self.frame_current = None
 
-		self.video_source = video_source
-		frame_count = int(cv2.VideoCapture.get(video_source, int(cv2.CAP_PROP_FRAME_COUNT)))
+		self.vs = cv2.VideoCapture(video_path)
+		frame_count = int(cv2.VideoCapture.get(self.vs, int(cv2.CAP_PROP_FRAME_COUNT)))
 
 		self.puck_markers = markers(frame_count)
 
@@ -54,13 +51,13 @@ class ui:
 
 	def release(self):
 		cv2.destroyAllWindows()
+		self.vs.release()
 		self.puck_markers.release()
 
 	def on_trackbar(self, pos, data=None):
-		cv2.VideoCapture.set(self.video_source, int(cv2.CAP_PROP_POS_FRAMES), pos)
-		_, frame = self.video_source.read()
+		cv2.VideoCapture.set(self.vs, int(cv2.CAP_PROP_POS_FRAMES), pos)
 		self.frame_index = pos
-		self.process_frame(frame)
+		self.process_frame()
 
 	def on_click(self, event, x, y, flags, param):
 		if event == cv2.EVENT_RBUTTONDOWN:
@@ -75,32 +72,36 @@ class ui:
 		print(x, y)
 		self.puck_markers.draw(self.frame_index, self.frame_current)
 		cv2.imshow(self.window_name, self.frame_current)
+		return False
 
-	def process_frame(self, frame):
+	def process_frame(self):
+		_, self.frame_current = self.vs.read()
 		cv2.setTrackbarPos(self.slider_name, self.window_name, self.frame_index)
-		self.frame_current = frame
-		self.puck_markers.draw(self.frame_index, frame)
-		cv2.imshow(self.window_name, frame)
+		self.puck_markers.draw(self.frame_index, self.frame_current)
+		cv2.imshow(self.window_name, self.frame_current)
+
+	def increment_frame(self):
+		self.frame_index += 1
+	
+	def decrement_frame(self):
+		self.frame_index -= 1
+		cv2.VideoCapture.set(self.vs, int(cv2.CAP_PROP_POS_FRAMES), self.frame_index)
+
 
 def main():
-	vs = cv2.VideoCapture('out.mp4')
-	output = ui(vs)
+	output = ui('out.mp4')
 
 	while(True):
-		_, frame = vs.read()
-		output.process_frame(frame)
-
+		output.process_frame()
 		key = cv2.waitKey(0)
 		if key & 0xFF == ord('q'):
 			break
 		if key & 0xFF == ord('['): # left
-			output.frame_index -= 1
-			cv2.VideoCapture.set(vs, int(cv2.CAP_PROP_POS_FRAMES), output.frame_index)
+			output.decrement_frame()
 		else:
-			output.frame_index += 1
+			output.increment_frame()
 
 	output.release()
-	vs.release()
 
 if __name__ == "__main__":
     main()
