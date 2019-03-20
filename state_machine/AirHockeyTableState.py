@@ -37,7 +37,6 @@ class AirHockeyTableState(State):
             puck_state = json.loads(self.redis.get(self.puck_state_name))
             bot_state = json.loads(self.redis.get(self.bot_state_name))
 
-            print(puck_state, bot_state)
             handle(puck_state, bot_state)
 
         time.sleep(self.__sleep_time)
