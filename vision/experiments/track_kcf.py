@@ -6,13 +6,13 @@ tracker = cv2.TrackerKCF_create()
 video = cv2.VideoCapture(1)
 
 if not video.isOpened():
-    print 'Could not open video'
+    print('Could not open video')
     sys.exit()
 
 # read first frame
 ok, frame = video.read()
 if not ok:
-    print 'Cannot read video frame'
+    print('Cannot read video frame')
     sys.exit()
 
 # Define an initial bounding box

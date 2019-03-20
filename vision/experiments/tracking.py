@@ -34,13 +34,13 @@ video = cv2.VideoCapture(0)
 
 # Exit if video not opened.
 if not video.isOpened():
-    print "Could not open video"
+    print("Could not open video")
     sys.exit()
 
 # Read first frame.
 ok, frame = video.read()
 if not ok:
-    print 'Cannot read video file'
+    print('Cannot read video file')
     sys.exit()
     
 # Define an initial bounding box

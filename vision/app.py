@@ -232,7 +232,7 @@ def find_bot(image):
 
         return tuple(np.int0(center)), int(radius)
     else:
-        print 'Bot Not Detected'
+        print('Bot Not Detected')
         return (0,0), 0
 
 def set_puck_state(puck_pos):
@@ -340,14 +340,14 @@ while(True):
             frames += 1
             frameCt += 1
         except Exception as ex:
-            print ex
+            print(ex)
             pass
         
         if time.time() - start > 1:
             cur_fps = frames
             frames = 0
             start = time.time()
-            print "FPS:", cur_fps
+            print("FPS:", cur_fps)
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
