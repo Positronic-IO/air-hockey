@@ -1,23 +1,33 @@
-#!python3
-# pylint: disable=R, W0401, W0614, W0703
 import logging
 import math
-import os
 import random
 from ctypes import *
 
 import cv2
 import numpy as np
-from imutils.video import WebcamVideoStream
 from skimage import draw, io
+from imutils.video import WebcamVideoStream
+
+import sys, os
+sys.path.append(os.getcwd())
+
+from state_machine import AirHockeyTableState
+
+# dir_path = os.path.split(os.path.dirname(os.path.realpath(__name__)))
+
+
+print(os.getcwd())
+
+
+state = AirHockeyTableState()
 
 netMain = None
 metaMain = None
 altNames = None
 thresh = 0.75
-configPath = "./config/tiny.cfg"
-weightPath = "./config/tiny.weights"
-metaPath = "./config/tiny.data"
+configPath = "./yolo/config/tiny.cfg"
+weightPath = "./yolo/config/tiny.weights"
+metaPath = "./yolo/config/tiny.data"
 
 live = False
 rotate = 0
@@ -77,7 +87,7 @@ class METADATA(Structure):
 
 def init():
     global live, vs, predict_image, get_network_boxes, do_nms_sort, free_detections
-    lib = CDLL("./darknet.so", RTLD_GLOBAL)
+    lib = CDLL("./yolo/darknet.so", RTLD_GLOBAL)
     lib.network_width.argtypes = [c_void_p]
     lib.network_width.restype = c_int
     lib.network_height.argtypes = [c_void_p]
@@ -180,7 +190,7 @@ def init():
     if live:
         vs = WebcamVideoStream(src=0).start()
     else:
-        vs = cv2.VideoCapture('data/data.mp4')
+        vs = cv2.VideoCapture('yolo/data/data.mp4')
 
 
 def array_to_image(arr):
@@ -285,12 +295,13 @@ def find_center_box(detections):
         data = detections[0]
         coords = data[2]
         center = {
-            "x": coords[0][0] + 0.5 * (coords[3][0] - coords[0][0]),
-            "y": coords[0][1] + 0.5 * (coords[1][1] - coords[0][1])
+            "x": int(coords[0][0] + 0.5 * (coords[3][0] - coords[0][0])),
+            "y": int(coords[0][1] + 0.5 * (coords[1][1] - coords[0][1]))
         }
     except IndexError:
         return None
 
+    state.publish(name="puck", data=center)
     return center
 
 
@@ -319,9 +330,9 @@ def main():
 
         detections, frame = get_frame()
 
-        center = find_center_box(detections)
-        print(detections)
-        print(center)
+        find_center_box(detections)
+        # print(detections)
+        # print(center)
 
         if frame is None:
             continue

@@ -20,11 +20,19 @@ class AirHockeyTableState(State):
         # Subscribe to channel
         self.pubsub.subscribe(self.__channel)
 
-    def publish(self, data):
+    def publish(self, data, name="default"):
         """" Publish data to Redis """
 
+        # Naming shortcuts
+        if name == "bot":
+            self.name = self.bot_state_name
+        elif name == "puck":
+            self.name = self.puck_state_name
+        else:
+            self.name = name
+
         # Put data in redis
-        self.redis_serialize_set(self.bot_state_name, data)
+        self.redis_serialize_set(self.name, data)
         self.redis.publish(self.__channel, self.__message)
 
         return None
@@ -33,7 +41,7 @@ class AirHockeyTableState(State):
         """ Subscribe to channel in Redis """
 
         message = self.pubsub.get_message()
-        
+
         if isinstance(message, dict) and (message["channel"].decode("utf-8") == self.__channel):
             puck_state = json.loads(self.redis.get(self.puck_state_name))
             bot_state = json.loads(self.redis.get(self.bot_state_name))

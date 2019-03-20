@@ -73,7 +73,7 @@ def meet_the_puck(puck_state, bot_state):
         # fluffy.goto(updated_bot_state['x'], updated_bot_state['y'])
 
         # Update new position
-        state.publish(data=updated_bot_state)
+        state.publish(name="bot", data=updated_bot_state)
 
 
 if __name__ == "__main__":
