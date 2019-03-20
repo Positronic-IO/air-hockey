@@ -1,0 +1,5 @@
+classes = 2  
+train = data/two-pucks/train.txt  
+valid = data/two-pucks/test.txt  
+names = ./config/tiny.names  
+backup = weights/ 

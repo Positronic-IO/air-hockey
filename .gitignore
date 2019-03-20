@@ -103,3 +103,7 @@ ENV/
 
 #Nodejs
 */node_modules/*
+
+# Yolo detector data
+*.mp4
+*.weights

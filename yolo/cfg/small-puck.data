@@ -1,5 +1,0 @@
-classes= 1  
-train  = data/small-puck/train.txt  
-valid  = data/small-puck/test.txt  
-names = cfg/puck.names  
-backup = weights/ 
