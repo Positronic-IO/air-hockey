@@ -19,7 +19,8 @@ fluffy.accel_high = chr(10)
 
 state = AirHockeyTableState()
 
-min_y = 450
+PUCK_RADIUS = 20
+min_x = 280 - 2 * PUCK_RADIUS
 
 
 def meet_the_puck(puck_state, bot_state):
@@ -49,8 +50,8 @@ def meet_the_puck(puck_state, bot_state):
         new_b['x'] -= int(cx)
         new_b['y'] -= int(cy)
 
-        if new_b['y'] < min_y:
-            new_b['y'] = int(min_y)
+        if new_b['x'] > min_x:
+            new_b['x'] = int(min_x)
 
         # fluffy.goto(new_b['x'], new_b['y'])
 
