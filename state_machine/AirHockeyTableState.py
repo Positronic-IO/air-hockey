@@ -1,11 +1,11 @@
 """ Air Hockey Table State """
 import json
+import time
 
 from .State import State
-from time import time
 
 
-class AirHockeyState(State):
+class AirHockeyTableState(State):
 
     bot_state_name = "machine-state-bot"
     puck_state_name = "machine-state-puck"
@@ -19,12 +19,12 @@ class AirHockeyState(State):
         # Subscribe to channel
         self.pubsub.subscribe(self.__channel)
 
-     def publish(self, data):
-        """" Publish data to Redis """"
+    def publish(self, data):
+        """" Publish data to Redis """
 
         # Put data in redis
         self.redis_serialize_set(self.bot_state_name, data)
-        self.redis.publish(self.__channel, True)
+        self.redis.publish(self.__channel, self.__message)
 
         return None
 
@@ -32,35 +32,36 @@ class AirHockeyState(State):
         """ Subscribe to channel in Redis """
 
         message = self.pubsub.get_message()
+        
+        if isinstance(message, dict) and (message["channel"].decode("utf-8") == self.__channel):
+            puck_state = json.loads(self.redis.get(self.puck_state_name))
+            bot_state = json.loads(self.redis.get(self.bot_state_name))
 
-        if isinstance(message, dict) and (message["channel"] == bytes(self.__channel)):
-            puck_state = json.loads(self.redis.get(puck_state_name))
-            bot_state = json.loads(self.redis.get(bot_state_name))
-
+            print(puck_state, bot_state)
             handle(puck_state, bot_state)
 
         time.sleep(self.__sleep_time)
-          
 
     @property
     def channel(self):
         return self.__channel
 
     @channel.setter
-    def channel(self, data)
+    def channel(self, data):
         self.__channel = data
 
-     @property
+    @property
     def message(self):
         return self.__message
 
     @message.setter
-    def message(self, data)
+    def message(self, data):
         self.__message = data
 
     @property
     def sleep_time(self):
         return self.__sleep_time
 
-    @sleep_time(self, data):
+    @sleep_time.setter
+    def sleep_time(self, data):
         self.__sleep_time = data

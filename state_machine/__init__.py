@@ -1,2 +1,2 @@
-from .AirHockeyTable import AirHockeyState
+from .AirHockeyTableState import AirHockeyTableState
 from .State import State

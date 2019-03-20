@@ -4,7 +4,7 @@ import time
 import json
 import math
 from vision import robot
-from state_machine import AirHockeyTable
+from state_machine import AirHockeyTableState
 
 #sleep_time = 0.015
 sleep_time = 0.015
@@ -17,7 +17,7 @@ fluffy.speed_high = chr(10)
 fluffy.accel_low = chr(255)
 fluffy.accel_high = chr(10)
 
-state = AirHockeyTable()
+state = AirHockeyTableState()
 
 min_y = 450
 
