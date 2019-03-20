@@ -4,6 +4,7 @@ import time
 import json
 import math
 from vision import robot
+from state_machine import AirHockeyTable
 
 #sleep_time = 0.015
 sleep_time = 0.015
@@ -16,55 +17,48 @@ fluffy.speed_high = chr(10)
 fluffy.accel_low = chr(255)
 fluffy.accel_high = chr(10)
 
-r = redis.StrictRedis(host="localhost", port=6379, db=0)
-p = r.pubsub(ignore_subscribe_messages=True)
+state = AirHockeyTable()
 
 min_y = 450
 
+
 def meet_the_puck(puck_state, bot_state):
     speed = fast
-    p = json.loads(puck_state)
-    b = json.loads(bot_state)
+    p = puck_state
+    b = bot_state
 
-    #find horiz and vertical distances between puck and bot
+    # find horiz and vertical distances between puck and bot
     dx = float(b['x']) - float(p['x'])
     dy = float(b['y']) - float(p['y'])
-    
-    # todo: 
+
+    # todo:
     #   if puck is behind bot, do not go towards puck, go around.
-        
-    
-    #get the hypotenuse
+
+    # get the hypotenuse
     d = math.hypot(dx, dy)
-    
+
     if d > 100:
         speed = slow
-    
+
     if abs(d) > 30:
         # calculate the change to the position
         cx = min(speed * dx/d, dx)
         cy = min(speed * dy/d, dy)
-        
+
         new_b = b
         new_b['x'] -= int(cx)
         new_b['y'] -= int(cy)
-        
+
         if new_b['y'] < min_y:
             new_b['y'] = int(min_y)
 
-        fluffy.goto(new_b['x'], new_b['y'])
+        # fluffy.goto(new_b['x'], new_b['y'])
 
-        r.set("machine-state-bot", json.dumps(new_b))
-        r.publish('state-changed', True)
+        state.publish(data=new_b)
 
-p.subscribe('state-changed')
 
-# event loop for bot
-while True:
-    message = p.get_message()
-    if message:
-        if message['channel'] == 'state-changed':
-            puck_state = r.get('machine-state-puck')
-            bot_state = r.get('machine-state-bot')
-            meet_the_puck(puck_state, bot_state)
-        time.sleep(sleep_time)
+if __name__ == "__main__":
+
+    # event loop for bot
+    while True:
+        state.subscribe(handle=meet_the_puck)

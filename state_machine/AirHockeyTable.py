@@ -4,6 +4,7 @@ import json
 from .State import State
 from time import time
 
+
 class AirHockeyState(State):
 
     bot_state_name = "machine-state-bot"
