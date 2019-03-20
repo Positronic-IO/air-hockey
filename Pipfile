@@ -4,13 +4,17 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+autopep8 = "*"
 
 [packages]
 redis = "*"
 numpy = "*"
 flake8 = "*"
-black = "*"
 pytest = "*"
+opencv-python = "*"
+scikit-image = "*"
+scipy = "*"
+imutils = "*"
 
 [requires]
 python_version = "3.6"

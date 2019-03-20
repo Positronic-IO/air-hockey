@@ -6,6 +6,7 @@ from .State import State
 
 
 class AirHockeyTableState(State):
+    """ Captures the state of the air hockey table """
 
     bot_state_name = "machine-state-bot"
     puck_state_name = "machine-state-puck"
