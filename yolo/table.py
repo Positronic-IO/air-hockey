@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import random
@@ -10,16 +11,8 @@ from imutils.video import WebcamVideoStream
 
 import sys
 import os
-print(os.getcwd())
-
 sys.path.append(os.getcwd())
-
 from state_machine import AirHockeyTableState
-
-
-# dir_path = os.path.split(os.path.dirname(os.path.realpath(__name__)))
-
-
 
 
 state = AirHockeyTableState()
@@ -291,15 +284,20 @@ def get_frame():
 
 
 def find_center_box(detections):
-    """ Find center of bounding box """
+    """ Find center of bounding box (scaled)"""
+
+    try:
+        offset = json.loads(state.redis.get("table_offset"))
+    except TypeError:
+        offset = {"x": 0, "y": 0}
 
     # Run when there are detections
     try:
         data = detections[0]
         coords = data[2]
         center = {
-            "x": int((coords[0][0] + coords[3][0]) / 2),
-            "y": int((coords[0][1] + coords[1][1]) / 2) - 143
+            "x": int((coords[0][0] + coords[3][0]) / 2) - int(offset["x"]),
+            "y": int((coords[0][1] + coords[1][1]) / 2) - int(offset["y"])
         }
     except IndexError:
         return None
