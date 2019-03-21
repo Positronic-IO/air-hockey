@@ -17,6 +17,9 @@ class AirHockeyTableState(State):
         self.__message = "state-changed"
         self.__sleep_time = 0.015
 
+        self.__default_bot_position = {"x": 100, "y": 100}
+        self.__default_puck_position = {"x": 100, "y": 100}
+
         # Subscribe to channel
         self.pubsub.subscribe(self.__channel)
 
@@ -43,8 +46,17 @@ class AirHockeyTableState(State):
         message = self.pubsub.get_message()
 
         if isinstance(message, dict) and (message["channel"].decode("utf-8") == self.__channel):
-            puck_state = json.loads(self.redis.get(self.puck_state_name))
-            bot_state = json.loads(self.redis.get(self.bot_state_name))
+
+            # Handles issues when the positions are not loaded into redis, sets to defaults
+            try:
+                puck_state = json.loads(self.redis.get(self.puck_state_name))
+            except TypeError:
+                puck_state = self.__default_puck_position
+
+            try:
+                bot_state = json.loads(self.redis.get(self.bot_state_name))
+            except TypeError:
+                bot_state = self.__default_bot_position
 
             handle(puck_state, bot_state)
 
@@ -73,3 +85,19 @@ class AirHockeyTableState(State):
     @sleep_time.setter
     def sleep_time(self, data):
         self.__sleep_time = data
+
+    @property
+    def default_bot_position(self):
+        return self.__default_bot_position
+
+    @default_bot_position.setter
+    def default_bot_position(self, data):
+        self.__default_bot_position = data
+    
+    @property
+    def default_puck_position(self):
+        return self.__default_puck_position
+
+    @default_puck_position.setter
+    def default_puck_position(self, data):
+        self.__default_puck_position = data
