@@ -8,7 +8,7 @@ from state_machine import AirHockeyTableState
 from vision import robot
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 # Configure robot
 fluffy = robot.Robot()
@@ -17,19 +17,23 @@ fluffy.speed_high = chr(10)
 fluffy.accel_low = chr(255)
 fluffy.accel_high = chr(10)
 
-#  Initialize state
-state = AirHockeyTableState()
-state.sleep_time = 0.015
-
 # Define Table Constants
 TABLE_HEIGHT = 212  # (px)
 TABLE_WIDTH = 411  # (px)
 PUCK_RADIUS = 10
-SAFETY_BORDER = PUCK_RADIUS + 2  # (px)
+SAFETY_BORDER = 2  # (px)
 MIN_X = 120 - 2 * PUCK_RADIUS
 MIN_Y = (SAFETY_BORDER, TABLE_HEIGHT - SAFETY_BORDER)
 
+# Initialize state
+state = AirHockeyTableState()
+state.sleep_time = 0.015
 
+# Default Position
+state.default_bot_position = {"x": 50, "y": int(TABLE_HEIGHT / 2)}
+state.default_puck_position = {"x": TABLE_WIDTH - 50, "y": int(TABLE_HEIGHT / 2)}
+
+# Bot speed
 FAST = 100
 SLOW = 50
 
@@ -48,10 +52,8 @@ def meet_the_puck(puck_state, bot_state):
     speed = FAST
 
     # Normalize state by offset
-    bot_state = normalize(bot_state)
+    # bot_state = normalize(bot_state)
     # puck_state = normalize(puck_state)
-    
-    print(bot_state, puck_state)
 
     # find horiz and vertical distances between puck and bot
     dx = float(bot_state['x']) - float(puck_state['x'])
@@ -83,8 +85,7 @@ def meet_the_puck(puck_state, bot_state):
         # Safety border (Robot does not go all the way to edge of table)
         if updated_bot_state['y'] < MIN_Y[0]:
             updated_bot_state['y'] = MIN_Y[0]
-
-        if updated_bot_state['y'] > MIN_Y[1]:
+        elif updated_bot_state['y'] > MIN_Y[1]:
             updated_bot_state['y'] = MIN_Y[1]
 
         # Send directions to the robot
@@ -92,13 +93,23 @@ def meet_the_puck(puck_state, bot_state):
 
         # Update new position
         state.publish(name="bot", data=updated_bot_state)
-        # state.publish(name="bot", data=updated_bot_state)
-
 
 
 if __name__ == "__main__":
     logger.info(f"Updating the state of {fluffy}")
     logger.info(f"Robot responsiveness: {state.sleep_time}")
+
+    # If the table offset and dimensions have been calculated, display. Else, zero offset
+    try:
+        logger.info(
+            f"Table offset: {json.loads(state.redis.get('table_offset'))}")
+
+        logger.info(
+            f"Table dimensions: {json.loads(state.redis.get('table_dimensions'))}")
+    except TypeError:
+        logger.info("Table offset: {'x': 0, 'y': 0}")
+        logger.info(
+            "Table dimensions are undefined.")
 
     # event loop for bot
     while True:
