@@ -110,3 +110,6 @@ ENV/
 
 # Ignore frames
 yolo/captured_frames/
+
+# Redis dumps
+*.rdb
