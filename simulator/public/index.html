@@ -30,7 +30,7 @@
 <body>
     <div style="width:100%" id="canvas-container">
         <div>
-            <canvas id="sim-canvas" width=840 height=440></canvas>
+            <canvas id="sim-canvas" width=411 height=212></canvas>
         </div>
     </div>
 
@@ -55,7 +55,7 @@
         var sim_puck = {
             x: SIM_WIDTH - 50,
             y: SIM_HEIGHT / 2,
-            radius: 20,
+            radius: 10,
             fill:"#00FFFF",
             isDragging: false
         };
@@ -176,14 +176,14 @@
         var state_puck = {
             x: SIM_WIDTH - 50,
             y: SIM_HEIGHT / 2,
-            radius: 20,
+            radius: 10,
             fill:"#000000"
         };
 
         var state_bot = {
             x: 50,
             y: SIM_HEIGHT / 2,
-            radius: 20,
+            radius: 10,
             fill: "red"
         }
 
@@ -242,8 +242,8 @@
 
         function drawLine() {
             simCtx.beginPath();
-            simCtx.moveTo(280-state_bot.radius, 0);
-            simCtx.lineTo(280-state_bot.radius, SIM_HEIGHT);
+            simCtx.moveTo(120-state_bot.radius, 0);
+            simCtx.lineTo(120-state_bot.radius, SIM_HEIGHT);
             simCtx.strokeStyle = '#ccc';
             simCtx.stroke();
         }

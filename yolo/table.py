@@ -8,15 +8,18 @@ import numpy as np
 from skimage import draw, io
 from imutils.video import WebcamVideoStream
 
-import sys, os
+import sys
+import os
+print(os.getcwd())
+
 sys.path.append(os.getcwd())
 
 from state_machine import AirHockeyTableState
 
+
 # dir_path = os.path.split(os.path.dirname(os.path.realpath(__name__)))
 
 
-print(os.getcwd())
 
 
 state = AirHockeyTableState()
@@ -295,8 +298,8 @@ def find_center_box(detections):
         data = detections[0]
         coords = data[2]
         center = {
-            "x": int(coords[0][0] + 0.5 * (coords[3][0] - coords[0][0])),
-            "y": int(coords[0][1] + 0.5 * (coords[1][1] - coords[0][1]))
+            "x": int((coords[0][0] + coords[3][0]) / 2),
+            "y": int((coords[0][1] + coords[1][1]) / 2) - 143
         }
     except IndexError:
         return None

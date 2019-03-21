@@ -1,4 +1,5 @@
 """ Logic to update robot state """
+import json
 import logging
 
 import numpy as np
@@ -21,19 +22,36 @@ state = AirHockeyTableState()
 state.sleep_time = 0.015
 
 # Define Table Constants
-TABLE_HEIGHT = 440  # (px)
-TABLE_WIDTH = 840  # (px)
-PUCK_RADIUS = 20
-SAFETY_BORDER = PUCK_RADIUS + 10  # (px)
-MIN_X = 280 - 2 * PUCK_RADIUS
+TABLE_HEIGHT = 212  # (px)
+TABLE_WIDTH = 411  # (px)
+PUCK_RADIUS = 10
+SAFETY_BORDER = PUCK_RADIUS + 2  # (px)
+MIN_X = 120 - 2 * PUCK_RADIUS
 MIN_Y = (SAFETY_BORDER, TABLE_HEIGHT - SAFETY_BORDER)
+
 
 FAST = 100
 SLOW = 50
 
 
+def normalize(point):
+    """ Normalize point """
+
+    offset = json.loads(state.redis.get("table_offset"))
+    norm_x = max(0, int(point["x"]) - int(offset["x"]))
+    norm_y = max(0, int(point["y"]) - int(offset["y"]))
+    new_point = {"x": norm_x, "y": norm_y}
+    return new_point
+
+
 def meet_the_puck(puck_state, bot_state):
     speed = FAST
+
+    # Normalize state by offset
+    bot_state = normalize(bot_state)
+    # puck_state = normalize(puck_state)
+    
+    print(bot_state, puck_state)
 
     # find horiz and vertical distances between puck and bot
     dx = float(bot_state['x']) - float(puck_state['x'])
@@ -74,6 +92,8 @@ def meet_the_puck(puck_state, bot_state):
 
         # Update new position
         state.publish(name="bot", data=updated_bot_state)
+        # state.publish(name="bot", data=updated_bot_state)
+
 
 
 if __name__ == "__main__":
