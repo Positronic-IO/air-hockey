@@ -1,0 +1,5 @@
+classes = 2  
+train = yolo/data/two-pucks/train.txt  
+valid = yolo/data/two-pucks/test.txt  
+names = ./yolo/config/tiny.names  
+backup = weights/ 

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>AHR Web Simulator</title>
+
+    <style>
+        body{ background-color: ivory; }
+        #canvas{border:1px solid green;}
+
+        #canvas-state{
+            border: 1px solid red;
+            position: relative;
+            left: 150px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas" width=480 height=640></canvas>
+    <canvas id="canvas-state" width=480 height="640"></canvas>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+    <script>
+        var socket = io();
+        // setInterval(function() {
+
+        //     fetch('http://localhost:3000/api/get-state',
+        //         {
+        //             headers: {
+        //                 'content-type': 'application/json'
+        //             },
+        //             method: 'GET',
+                    
+        //         })
+        //     .then(response => response.json())
+        //     .then(function(responseJson) {
+        //         console.log('state: ', responseJson);
+        //     });
+
+        // }, 17);
+
+        // get canvas related references
+        var canvas = document.getElementById("canvas");
+        var ctx = canvas.getContext("2d");
+        var BB = canvas.getBoundingClientRect();
+        var offsetX = BB.left;
+        var offsetY = BB.top;
+        var WIDTH = canvas.width;
+        var HEIGHT = canvas.height;
+
+        // drag related variables
+        var dragok = false;
+        var startX;
+        var startY;
+
+        // an array of objects that define different rectangles
+        var puck = {
+            x:WIDTH / 2,
+            y:50,
+            radius: 20,
+            fill:"#444444",
+            isDragging: false
+        };
+
+        // listen for mouse events
+        canvas.onmousedown = myDown;
+        canvas.onmouseup = myUp;
+        canvas.onmousemove = myMove;
+
+        // call to draw the scene
+        draw();
+
+        function drawPuck(x,y,r) {
+            ctx.beginPath();
+            ctx.arc(x,y,r,0,Math.PI*2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // clear the canvas
+        function clear() {
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        }
+
+        // redraw the scene
+        function draw() {
+            clear();
+
+            ctx.fillStyle = puck.fill;
+            drawPuck(puck.x,puck.y,puck.radius);
+        }
+
+
+        // handle mousedown events
+        function myDown(e) {
+
+            // tell the browser we're handling this mouse event
+            e.preventDefault();
+            e.stopPropagation();
+
+            // get the current mouse position
+            var mx = parseInt(e.clientX - offsetX);
+            var my = parseInt(e.clientY - offsetY);
+
+            dragok = false;
+            
+            // Drawing Puck...
+            if (mx > puck.x - puck.radius && mx < puck.x + puck.radius && my > puck.y - puck.radius && my < puck.y + puck.radius) {
+                dragok = true;
+                puck.isDragging = true;
+            }
+
+            // save the current mouse position
+            startX = mx;
+            startY = my;
+        }
+
+
+        // handle mouseup events
+        function myUp(e) {  
+            // tell the browser we're handling this mouse event
+            e.preventDefault();
+            e.stopPropagation();
+
+            // clear all the dragging flags
+            dragok = false;
+            // for (var i = 0; i < rects.length; i++) {
+            //     rects[i].isDragging = false;
+            // }
+
+            puck.isDragging = false;
+        }
+
+
+        // handle mouse moves
+        function myMove(e) {
+            // if we're dragging anything...
+            if (dragok) {
+
+                // tell the browser we're handling this mouse event
+                e.preventDefault();
+                e.stopPropagation();
+
+                // get the current mouse position
+                var mx = parseInt(e.clientX - offsetX);
+                var my = parseInt(e.clientY - offsetY);
+
+                // calculate the distance the mouse has moved
+                // since the last mousemove
+                var dx = mx - startX;
+                var dy = my - startY;
+
+                if (puck.isDragging) {
+                    puck.x += dx;
+                    puck.y += dy;
+                }
+
+                var puckPosition = {x:puck.x,y:puck.y};
+
+                //console.log('Puck Positon: ', puckPosition);
+                setPuckPos(`http://localhost:3000/api/puck-move`, puckPosition);
+
+                // redraw the scene with the new rect positions
+                draw();
+
+                // reset the starting mouse position for the next mousemove
+                startX = mx;
+                startY = my;
+            }
+        }
+
+        function setPuckPos(url, data) {
+            fetch(url,
+                {
+                    body: JSON.stringify(data),
+                    headers: {
+                        'content-type': 'application/json'
+                    },
+                    method: 'POST',
+                    
+                })
+            .then(response => response.json());
+        }
+    </script>
+</body>
+</html>

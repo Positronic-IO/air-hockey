@@ -8,6 +8,7 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+package-lock.json
 env/
 build/
 develop-eggs/
@@ -15,7 +16,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -24,6 +24,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.vscode/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -99,3 +100,16 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+#Nodejs
+*/node_modules/*
+
+# Yolo detector data
+*.mp4
+*.weights
+
+# Ignore frames
+yolo/captured_frames/
+
+# Redis dumps
+*.rdb
