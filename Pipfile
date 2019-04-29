@@ -16,6 +16,8 @@ scikit-image = "*"
 scipy = "*"
 imutils = "*"
 jupyterlab = "*"
+keras = "*"
+tensorflow-gpu = "==1.12.0"
 
 [requires]
 python_version = "3.6"
